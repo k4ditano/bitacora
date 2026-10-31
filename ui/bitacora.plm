@@ -75,10 +75,11 @@ scene Bitacora {
     fact tab.cur = 0
     fact panes = 1                       // how many panes the tab in front has
     model tabs max 10 { name: text; here: bool; g0: number; g1: number; g2: number; g3: number; g4: number; ring: bool; ti: number; tone: number; ag: number }
-    // A beat while an agent works or a wire carries something: the logic turns it, the springs make it a pulse.
+    // A beat while an agent works or a wire carries something: the logic turns it, six steps a breath. (In steps,
+    // not a spring: a spring that never rests would paint the whole window at the screen's rate for as long as an
+    // agent works — 165 times a second for a dot.)
     fact beat = 0
-    prop pulse = 0 ~calm
-    follow pulse = beat
+    let pulse = pick(beat, 0, 0.35, 0.75, 1, 0.75, 0.35)
     // The line under it all: where, on which branch, how big.
     text st.where = ""
     text st.branch = ""
@@ -276,7 +277,7 @@ scene Bitacora {
         box { from: kx - kw / 2, ky - kh / 2; size: kw, kh; corner: 6; stroke: 1; color: if(pair.st == 3, ASK, acc); opacity: 55% }
         repeat g in 0..4 {
             let at = (g - 1.5) * 6
-            let wave = clamp(1 - abs(if(way > 0, g, 3 - g) - pulse * 4 + 0.5) / 1.4, 0, 1)
+            let wave = clamp(1 - abs(if(way > 0, g, 3 - g) - beat * 0.8 + 0.5) / 1.4, 0, 1)
             let busy = pair.flow != 0 or pair.st == 1
             box { from: kx + if(side, at, 0) - 1.5, ky + if(side, 0, at) - 1.5; size: 3, 3; corner: 0.8; color: if(pair.st == 3, ASK, acc); opacity: if(busy, 30% + 70% * wave, 60%) }
         }

@@ -786,16 +786,19 @@ end
 if in_session then
     every(1000, look_agents)
 end
--- The beat: only while something works, so that a window at rest stays at rest.
-every(650, function()
+-- The beat: six steps a breath (1.3 s), and only while something works, so that a window at rest stays at rest.
+every(220, function()
     local busy = pair_flow ~= 0
     for _, a in pairs(agents) do
         if a.st == 1 then
             busy = true
         end
     end
-    if busy or (tonumber(fact["beat"]) or 0) > 0.5 then
-        fact["beat"] = if (tonumber(fact["beat"]) or 0) > 0.5 then 0 else 1
+    local b = math.floor(tonumber(fact["beat"]) or 0)
+    if busy then
+        fact["beat"] = (b + 1) % 6
+    elseif b ~= 0 then
+        fact["beat"] = 0
     end
 end)
 
