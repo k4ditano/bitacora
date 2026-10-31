@@ -876,11 +876,18 @@ local sending = ""
 local comp_ids = {}
 local function send_open(s: number)
     local ok, sel = pcall(sys.ask, "terminal.selection", string.format("term.%d", s))
+    -- A program that takes the mouse (Claude Code, vim) selects by itself and copies what it selected: that, if
+    -- it was just now.
     if not ok or type(sel) ~= "string" or sel == "" then
-        say(tr("Select something first"))
+        ok, sel = pcall(sys.ask, "terminal.copied", string.format("term.%d", s), 120)
+    end
+    if not ok or type(sel) ~= "string" or sel == "" then
+        say(tr("Select something first (with Shift, where the program takes the mouse)"))
         give_keys(s)
         return
     end
+    -- (Without the blank lines a whole screen selected brings at its end.)
+    sel = string.gsub(sel, "%s+$", "")
     sending = tr("From my terminal, in %s:"):format(short(folder_of(s))) .. "\n\n```\n" .. sel .. "\n```"
     run("pleamar-wm", { "link", "caravan", "--json" }, function(out, code)
         local okj, d = pcall(json.decode, tostring(out or ""))

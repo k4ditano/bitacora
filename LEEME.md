@@ -33,7 +33,7 @@ binario con sus fuentes.
   que encajen; seleccionar con el ratón (doble clic, una palabra; triple, la
   línea), Ctrl+Mayús+C y V, el botón central pega; la rueda por el historial;
   Ctrl+clic abre un enlace; los programas que quieren el ratón (vim, htop) lo
-  tienen; y el cursor se desliza al escribir.
+  tienen; y el cursor deja una estela tenue al escribir.
 - **Los agentes la leen.** En una sesión de pleamar-wm sus shells pasan por la
   capa de terminales, así que `pleamar-wm agent` los lee y ejecuta órdenes en
   ellos como en cualquier otra terminal.

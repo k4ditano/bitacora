@@ -31,8 +31,8 @@ logic (`ui/bitacora.luau`), carried inside one binary with its fonts.
   underlines; box lines and blocks drawn by hand so they meet; selecting with
   the mouse (two clicks a word, three a line), Ctrl+Shift+C and V, the middle
   button pastes; the wheel through the history; Ctrl+click opens a link;
-  programs that want the mouse (vim, htop) get it; and the cursor glides when
-  you type.
+  programs that want the mouse (vim, htop) get it; and the cursor leaves a
+  faint trail when you type.
 - **Agents read it.** In a pleamar-wm session its shells go through the layer of
   terminals, so `pleamar-wm agent` reads them and runs commands in them as in
   any other terminal.

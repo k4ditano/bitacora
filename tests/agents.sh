@@ -123,6 +123,14 @@ boxes=\$("\$W" link caravan --json | python3 -c "import json,sys; print(','.join
 if [ "\$boxes" = probe ]; then e "emit send_to 1"; sleep 1.5; else ko "other mailboxes than this test's (\$boxes): nothing sent"; fi
 "\$W" link mail probe --json > "$OUT/mail.json" 2>&1
 grep -q "a line to select and send" "$OUT/mail.json" && ok "the letter is in its mailbox, with what was selected" || ko "mail: \$(head -c 400 "$OUT/mail.json")"
+# A program that takes the mouse selects by itself and copies (OSC 52): Send to… sends that, nothing selected.
+"\$W" term paste "\$np" "printf '\\033]52;c;%s\\007' \$(printf 'copied by the program' | base64)" > /dev/null 2>&1
+"\$W" term keys "\$np" enter > /dev/null 2>&1; sleep 1
+ns=0; for i in \$(seq 0 11); do [ "\$(g term.\$i.pid | cut -d. -f1)" = "\$np" ] && ns=\$i; done
+e "fact menu.s \$ns"; sleep 0.3; e "emit menu_do 10"
+waitf send.on true 30 && e "emit send_to 1"; sleep 1.5
+"\$W" link mail probe --json > "$OUT/mail2.json" 2>&1
+grep -q "copied by the program" "$OUT/mail2.json" && ok "nothing selected, what the program copied (OSC 52) is what Send to… sends" || ko "copied: \$(head -c 300 "$OUT/mail2.json")"
 # A companion's window: opened by pleamar-wm with Bitácora, named.
 # (As Calima runs it: with the session's SHELL, its layer of terminals, and the real one beside it.)
 lsh=\$(tr '\\0' '\\n' < /proc/\$bpid/environ | grep '^SHELL=' | cut -d= -f2-)

@@ -509,7 +509,7 @@ scene Bitacora {
         "Agent beside" = "Agente al lado"
         "Send what is selected to" = "Enviar lo seleccionado a"
         "No companions: Calima's caravan has none" = "No hay compañeros: la caravana de Calima no tiene"
-        "Select something first" = "Selecciona algo antes"
+        "Select something first (with Shift, where the program takes the mouse)" = "Selecciona algo antes (con Mayús, si el programa usa el ratón)"
         "Sent to %s" = "Enviado a %s"
         "%s did not get it: %s" = "%s no lo recibió: %s"
         "From my terminal, in %s:" = "Desde mi terminal, en %s:"
