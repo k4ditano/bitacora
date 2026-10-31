@@ -245,6 +245,51 @@ scene Bitacora {
         text st.size { at: W - 18, ly; anchor: right center; size: 11.5; family: "JetBrains Mono"; color: faint; show: not narrow }
     }
 
+    // ── looking for something in the history of the pane with the keys ──
+    fact find.on = false
+    fact find.s = 0
+    fact find.miss = false
+    text find.q = ""
+    event find_go ->
+    event find_close ->
+    on key Ctrl+Shift+F { emit find_open }
+    event find_open ->
+    on key Escape while find.on { emit find_close }
+    // (Enter: the one before, up the history, where what was just printed is not.)
+    on submit find.q { emit find_go(0) }
+    prop fp = 0 ~quick
+    follow fp = if(find.on, 1, 0)
+    let FW = 330
+    let fx = BX + s[find.s].x * BW + s[find.s].w * BW - FW - 18
+    let fy = BY + s[find.s].y * BH + 12
+    group {
+        show: fp > 0.01
+        opacity: fp
+        move: 0, -6 * (1 - fp)
+        box { from: fx + 2, fy + 5; size: FW, 36; corner: 18; color: #000000; opacity: 20% }
+        box { from: fx, fy; size: FW, 36; corner: 18; color: mix(bg, ink, 0.09) }
+        box { from: fx, fy; size: FW, 36; corner: 18; stroke: 1; color: if(find.miss, #ef7a66, acc); opacity: if(find.miss, 55%, 35%) }
+        // A lens of grains: a ring and its handle.
+        ellipse { at: fx + 20, fy + 16.5; radius: 5.5; stroke: 1.5; color: dim }
+        box { from: fx + 23.5, fy + 20.5; size: 1.6, 5.5; corner: 0.8; rotate: -45; color: dim }
+        input find.q { at: fx + 36, fy + 9; width: FW - 132; size: 13; family: "Manrope"; color: ink; placeholder: "Find in its history"; selection: mix(paper, acc, 0.4) }
+        text "Not found" { at: fx + FW - 102, fy + 18; anchor: right center; size: 11; weight: 600; family: "Manrope"; color: #ef7a66; show: find.miss }
+        component FindBtn(k: number, x: number) {
+            group {
+                zone ellipse b { at: x, fy + 18; radius: 13; cursor: pointer; active: find.on; label: pick(k, "The one before (up)", "The next (down)", "Stop looking") }
+                ellipse { at: x, fy + 18; radius: 13; color: ink; opacity: 9% * b.hover }
+                path { at: x, fy + 18; stroke: 1.6; color: dim; show: k == 0; move -4.5, 2.5; line 0, -2.5; line 4.5, 2.5 }
+                path { at: x, fy + 18; stroke: 1.6; color: dim; show: k == 1; move -4.5, -2.5; line 0, 2.5; line 4.5, -2.5 }
+                path { at: x, fy + 18; stroke: 1.6; color: dim; show: k == 2; move -4, -4; line 4, 4 }
+                path { at: x, fy + 18; stroke: 1.6; color: dim; show: k == 2; move 4, -4; line -4, 4 }
+                on press b { emit find_go(k) }
+            }
+        }
+        FindBtn(0, fx + FW - 82)
+        FindBtn(1, fx + FW - 54)
+        FindBtn(2, fx + FW - 24)
+    }
+
     // ── a menu where a pane is pressed with the right button ──
     fact menu.on = false
     fact menu.x = 0
@@ -267,7 +312,7 @@ scene Bitacora {
     on press shield { menu.on = false }
     on press right shield { menu.on = false }
     let MW = 236
-    let MH = 9 * 30 + 2 * 9 + 12
+    let MH = 10 * 30 + 2 * 9 + 12
     let mx = clamp(menu.x, 8, W - MW - 8)
     let my = clamp(menu.y, 8, H - MH - 8)
     group {
@@ -289,14 +334,15 @@ scene Bitacora {
         Item(0, my + 6, "Copy", "Ctrl+Shift+C")
         Item(1, my + 36, "Paste", "Ctrl+Shift+V")
         Item(2, my + 66, "Select all", "")
-        box { from: mx + 14, my + 99; size: MW - 28, 1; color: ink; opacity: 8% }
-        Item(3, my + 105, "Pane beside", "Ctrl+Shift+D")
-        Item(4, my + 135, "Pane below", "Ctrl+Shift+E")
-        Item(5, my + 165, "New tab", "Ctrl+Shift+T")
-        box { from: mx + 14, my + 198; size: MW - 28, 1; color: ink; opacity: 8% }
-        Item(6, my + 204, "Forget its history", "")
-        Item(7, my + 234, "New window", "Ctrl+Shift+N")
-        Item(8, my + 264, "Close pane", "Ctrl+Shift+W")
+        Item(9, my + 96, "Find", "Ctrl+Shift+F")
+        box { from: mx + 14, my + 129; size: MW - 28, 1; color: ink; opacity: 8% }
+        Item(3, my + 135, "Pane beside", "Ctrl+Shift+D")
+        Item(4, my + 165, "Pane below", "Ctrl+Shift+E")
+        Item(5, my + 195, "New tab", "Ctrl+Shift+T")
+        box { from: mx + 14, my + 228; size: MW - 28, 1; color: ink; opacity: 8% }
+        Item(6, my + 234, "Forget its history", "")
+        Item(7, my + 264, "New window", "Ctrl+Shift+N")
+        Item(8, my + 294, "Close pane", "Ctrl+Shift+W")
     }
 
     // ── a word that comes and goes ──
@@ -340,5 +386,12 @@ scene Bitacora {
         "Copied" = "Copiado"
         "Nothing is selected" = "No hay nada seleccionado"
         "History forgotten" = "Historial olvidado"
+        "Find in its history" = "Buscar en su historial"
+        "Not found" = "No está"
+        "The one before (up)" = "La anterior (arriba)"
+        "The next (down)" = "La siguiente (abajo)"
+        "Stop looking" = "Dejar de buscar"
+        "Find" = "Buscar"
+        "Ctrl+Shift+F" = "Ctrl+Mayús+F"
     }
 }

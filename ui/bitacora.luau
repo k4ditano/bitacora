@@ -468,6 +468,62 @@ on("new_window", function()
     end)
 end)
 
+-- ── looking for something in the history ──
+local function focused_shell(): number?
+    local t = tab_of(cur)
+    return if t then t.focus else nil
+end
+on("find_open", function()
+    local s = focused_shell()
+    if s == nil then
+        return
+    end
+    fact["find.s"] = s
+    fact["find.miss"] = false
+    fact["find.on"] = true
+    focus("find.q")
+    if (text["find.q"] or "") ~= "" then
+        local ok = pcall(sys.call, "terminal.find", string.format("term.%d", s), text["find.q"])
+        fact["find.miss"] = not ok
+    end
+end)
+local function find_close()
+    local s = math.floor(tonumber(fact["find.s"]) or 0)
+    fact["find.on"] = false
+    fact["find.miss"] = false
+    pcall(sys.call, "terminal.find_end", string.format("term.%d", s))
+    give_keys(s)
+end
+on("find_close", find_close)
+-- (As it is written: from the end up, each letter.)
+on("text:find.q", function(q)
+    if not fact["find.on"] then
+        return
+    end
+    local s = math.floor(tonumber(fact["find.s"]) or 0)
+    if tostring(q or "") == "" then
+        fact["find.miss"] = false
+        pcall(sys.call, "terminal.find_end", string.format("term.%d", s))
+        return
+    end
+    local ok = pcall(sys.call, "terminal.find", string.format("term.%d", s), tostring(q))
+    fact["find.miss"] = not ok
+end)
+on("find_go", function(v)
+    local k = math.floor(tonumber(v) or 1)
+    if k == 2 then
+        find_close()
+        return
+    end
+    local s = math.floor(tonumber(fact["find.s"]) or 0)
+    local q = text["find.q"] or ""
+    -- 0 (and Enter): the one before, up its history; 1: the next, down.
+    local older = k == 0
+    local ok = pcall(sys.call, if older then "terminal.find" else "terminal.find_newer", string.format("term.%d", s), q)
+    fact["find.miss"] = not ok
+    focus("find.q")
+end)
+
 -- ── the menu of the right button ──
 on("menu_do", function(v)
     local k = math.floor(tonumber(v) or -1)
@@ -502,6 +558,9 @@ on("menu_do", function(v)
         emit("new_window")
     elseif k == 8 then
         close_shell(s)
+        return
+    elseif k == 9 then
+        emit("find_open")
         return
     end
     give_keys(s)

@@ -51,6 +51,7 @@ binario con sus fuentes.
 | Mayús+RePág / AvPág | por el historial |
 | Ctrl++ / Ctrl+- / Ctrl+= (Ctrl+Mayús+0 en un teclado español) | más grande, más pequeña, como estaba |
 | Ctrl+Mayús+N | una ventana nueva |
+| Ctrl+Mayús+F | buscar en su historial: Intro, la anterior; las flechas, arriba y abajo; Esc, terminar |
 
 El botón derecho abre un menú con lo mismo, y con *Seleccionar todo* y
 *Olvidar su historial*.

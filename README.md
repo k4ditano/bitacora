@@ -50,6 +50,7 @@ logic (`ui/bitacora.luau`), carried inside one binary with its fonts.
 | Shift+PageUp / PageDown | through the history |
 | Ctrl++ / Ctrl+- / Ctrl+= (Ctrl+Shift+= on some keyboards) | bigger, smaller, as it was |
 | Ctrl+Shift+N | a new window |
+| Ctrl+Shift+F | find in its history: Enter, the one before; the arrows, up and down; Esc, done |
 
 The right button opens a menu with the same, and with *Select all* and
 *Forget its history*.
