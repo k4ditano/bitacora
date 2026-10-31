@@ -227,20 +227,22 @@ scene Bitacora {
             let row0 = pick(gr0, st.g0, st.g1, st.g2, st.g3, st.g4)
             box { from: 16 + 2.2 * gc, ly - 5.5 + 2.2 * gr0; size: 1.7, 1.7; corner: 0.4; color: acc; opacity: if(mod(floor(row0 / pow(2, gc)), 2) > 0.5, 90%, 14%) }
         }
-        text st.where { at: 34, ly; anchor: left center; size: 11.5; family: "JetBrains Mono"; color: dim; width: W * 0.55; lines: 1 }
+        // (Narrow, the size goes and where you are takes less: the branch must fit.)
+        let narrow = W < 520
+        text st.where { at: 34, ly; anchor: left center; size: 11.5; family: "JetBrains Mono"; color: dim; width: W * if(narrow, 0.42, 0.55); lines: 1 }
         measure stw
         text st.where { at: -4000, -4000; size: 11.5; family: "JetBrains Mono"; opacity: 0%; measure: stw }
         group {
             show: st.git
-            let bx2 = 34 + min(stw.width, W * 0.55) + 14
+            let bx2 = 34 + min(stw.width, W * if(narrow, 0.42, 0.55)) + 14
             // A branch: a small fork of grains.
             ellipse { at: bx2 + 3, ly - 3.5; radius: 1.6; color: acc }
             ellipse { at: bx2 + 3, ly + 3.5; radius: 1.6; color: acc }
             ellipse { at: bx2 + 8, ly - 3.5; radius: 1.6; color: acc; opacity: 70% }
-            text st.branch { at: bx2 + 15, ly; anchor: left center; size: 11.5; family: "JetBrains Mono"; color: acc; width: 200; lines: 1 }
+            text st.branch { at: bx2 + 15, ly; anchor: left center; size: 11.5; family: "JetBrains Mono"; color: acc; width: max(min(200, W - bx2 - 15 - if(narrow, 14, 74)), 10); lines: 1 }
         }
-        text st.what { at: W - 104, ly; anchor: right center; size: 11.5; family: "Manrope"; color: faint; width: W * 0.3; lines: 1; align: right }
-        text st.size { at: W - 18, ly; anchor: right center; size: 11.5; family: "JetBrains Mono"; color: faint }
+        text st.what { at: W - 104, ly; anchor: right center; size: 11.5; family: "Manrope"; color: faint; width: W * 0.3; lines: 1; align: right; show: not narrow and W > 900 }
+        text st.size { at: W - 18, ly; anchor: right center; size: 11.5; family: "JetBrains Mono"; color: faint; show: not narrow }
     }
 
     // ── a menu where a pane is pressed with the right button ──
@@ -261,7 +263,7 @@ scene Bitacora {
     prop mp = 0 ~quick
     follow mp = if(menu.on, 1, 0)
     // (Pressing anywhere else closes it.)
-    zone box shield { from: 0, 0; size: W, H; active: menu.on }
+    zone box shield { from: 0, 0; size: W, H; active: menu.on; agent: hidden }
     on press shield { menu.on = false }
     on press right shield { menu.on = false }
     let MW = 236
