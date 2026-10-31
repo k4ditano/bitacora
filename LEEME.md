@@ -58,6 +58,12 @@ En una sesión de pleamar-wm, Bitácora le pregunta cada segundo por sus shells
   ejecuta cosas en él con sus herramientas de `link`.
 - **Enviar a…** (botón derecho): lo seleccionado, como carta a un compañero
   (`pleamar-wm link post`).
+- **Toda una caravana en una ventana.** `text open.name ID`, `text open.folder
+  CARPETA`, `text open.cmd ORDEN` y `emit open_named` (por `pleamar --say
+  bitacora-PID`) abren una pestaña para ese compañero, con su nombre en su
+  shell, detrás de la que está delante (`fact open.front true`: delante); si se
+  pide otra vez, su pestaña se pone delante. Calima mete ahí toda su caravana,
+  un compañero por pestaña (diez pestañas y doce shells como mucho).
 - **Su pestaña, desde fuera.** Cada ventana atiende a `pleamar --say
   bitacora-PID`, y `emit show_layer N` pone delante la pestaña cuyo shell es la
   capa `N` de pleamar-wm: la isla de Calima te lleva a la pestaña misma de un

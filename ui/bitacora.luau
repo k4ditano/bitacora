@@ -3,8 +3,8 @@
 -- The shells themselves are the engine's (`terminal term.$i` in bitacora.plm):
 -- here they are only started (`s.$i.on`), placed and ended.
 
-local MAXS = 8 -- shells
-local MAXT = 6 -- tabs
+local MAXS = 12 -- shells
+local MAXT = 10 -- tabs (a whole caravan fits)
 local HOME = ""
 do
     local ok, h = pcall(sys.ask, "env", "HOME")
@@ -278,14 +278,21 @@ local function give_keys(s: number)
     end)
 end
 
-local function start_shell(s: number, t: Tab, folder: string)
+local pending_cmd: { [number]: string } = {} -- shell → what to type in it once its prompt is there
+local function start_shell(s: number, t: Tab, folder: string, name: string?, cmd: string?)
     local f = string.format("s.%d.", s)
     alive_seen[s] = false
     agents[s] = nil
+    pending_cmd[s] = if cmd and cmd ~= "" then cmd else nil
     text[f .. "start"] = folder
     -- The companion this window was opened for is its first shell, and no other: a new tab is yours.
-    text[f .. "env"] = if MY_NAME ~= "" and not name_given then "PLEAMAR_NAME=" .. MY_NAME else ""
-    name_given = name_given or MY_NAME ~= ""
+    -- (One opened from outside for a companion, `open_named`, is that one's.)
+    if name and name ~= "" then
+        text[f .. "env"] = "PLEAMAR_NAME=" .. name
+    else
+        text[f .. "env"] = if MY_NAME ~= "" and not name_given then "PLEAMAR_NAME=" .. MY_NAME else ""
+        name_given = name_given or MY_NAME ~= ""
+    end
     fact[f .. "tab"] = t.id
     fact[f .. "on"] = 1
 end
@@ -314,15 +321,15 @@ local function show_tab(id: number)
     give_keys(t.focus)
 end
 
-local function new_tab(folder: string?)
+local function new_tab(folder: string?, name: string?, cmd: string?, behind: boolean?): boolean
     if #tabs >= MAXT then
-        say(tr("Six tabs at most: close one first"))
-        return
+        say(tr("Ten tabs at most: close one first"))
+        return false
     end
     local s = free_shell()
     if s == nil then
-        say(tr("Eight shells at most: close one first"))
-        return
+        say(tr("Twelve shells at most: close one first"))
+        return false
     end
     local here = tab_of(cur)
     local where = folder or (if here then folder_of(here.focus) else "") or ""
@@ -333,8 +340,13 @@ local function new_tab(folder: string?)
     next_id += 1
     table.insert(tabs, t)
     lay_out(t)
-    start_shell(s, t, where)
-    show_tab(t.id)
+    start_shell(s, t, where, name, cmd)
+    if behind and cur ~= 0 then
+        publish_tabs()
+    else
+        show_tab(t.id)
+    end
+    return true
 end
 
 -- A shell that goes takes its wire with it.
@@ -534,6 +546,14 @@ for s = 0, MAXS - 1 do
         if (tonumber(v) or 0) > 0.5 then
             -- `bitacora -e COMMAND`: its first shell becomes that command, and ends with it. (Once its prompt
             -- is there, so that it is not written twice; cleared, and with a space before it so no history keeps it.)
+            -- What a companion's tab was opened to run (`open_named`), typed once its prompt is there.
+            if pending_cmd[s] and not alive_seen[s] then
+                local line = pending_cmd[s] .. "\r"
+                pending_cmd[s] = nil
+                after(350, function()
+                    pcall(sys.call, "terminal.write", string.format("term.%d", s), line)
+                end)
+            end
             if EXEC ~= "" and not alive_seen[s] then
                 local line = " clear; exec " .. EXEC .. "\r"
                 EXEC = ""
@@ -566,6 +586,42 @@ end
 
 on("new_tab", function()
     new_tab(nil)
+end)
+-- A companion's tab, asked from outside (Calima's caravan): `text open.name …`, `text open.folder …`,
+-- `text open.cmd …`, then `emit open_named`. One that is here already is only brought forward if asked.
+local function open_named()
+    local name, folder, cmd = text["open.name"] or "", text["open.folder"] or "", text["open.cmd"] or ""
+    local front = fact["open.front"] == true
+    text["open.name"], text["open.cmd"] = "", ""
+    fact["open.front"] = false
+    if name == "" or not string.match(name, "^[%w%-_]+$") then
+        return
+    end
+    for s = 0, MAXS - 1 do
+        -- (By the name its shell was given: one just opened, its agent still starting, is it too.)
+        local given = text[string.format("s.%d.env", s)] == "PLEAMAR_NAME=" .. name or (agents[s] ~= nil and agents[s].who == name)
+        if given and (tonumber(fact[string.format("s.%d.on", s)]) or 0) > 0.5 then
+            if front then
+                for _, t in ipairs(tabs) do
+                    for _, q in ipairs(t.panes) do
+                        if q == s then
+                            t.focus = s
+                            show_tab(t.id)
+                        end
+                    end
+                end
+            end
+            return
+        end
+    end
+    if folder ~= "" and HOME ~= "" and string.sub(folder, 1, 1) == "~" then
+        folder = HOME .. string.sub(folder, 2)
+    end
+    new_tab(if folder ~= "" then folder else nil, name, cmd, not front)
+end
+-- (What `--say` sets reaches the logic through the scene, and the event straight: a moment, and they are here.)
+on("open_named", function()
+    after(120, open_named)
 end)
 on("close_pane", function()
     local t = tab_of(cur)

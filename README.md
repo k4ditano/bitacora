@@ -57,6 +57,12 @@ In a pleamar-wm session Bitácora asks it every second about its shells
   its own: it reads it and runs things in it with its `link` tools.
 - **Send to…** (the right button): what is selected, as a letter to a
   companion (`pleamar-wm link post`).
+- **A whole caravan in one window.** `text open.name ID`, `text open.folder
+  DIR`, `text open.cmd COMMAND` and `emit open_named` (through `pleamar --say
+  bitacora-PID`) open a tab for that companion, its name in its shell, behind
+  the one in front (`fact open.front true`: in front); asked again, its tab is
+  brought forward. Calima puts its whole caravan there, one companion a tab
+  (ten tabs, twelve shells at most).
 - **Its tab, from outside.** Each window answers to `pleamar --say
   bitacora-PID`, and `emit show_layer N` brings forward the tab whose shell is
   pleamar-wm's layer `N`: Calima's island takes you to an agent's very tab.

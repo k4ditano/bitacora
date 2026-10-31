@@ -44,10 +44,10 @@ scene Bitacora {
     let W = screen.width
     let H = screen.height
 
-    // ── its terminals: eight shells at most, in up to six tabs, up to four panes a tab ──
+    // ── its terminals: twelve shells at most, in up to ten tabs (a whole caravan), up to four panes a tab ──
     fact zoom = 13.5
     // Where each pane is in its tab, as fractions of the body; its tab; whether it lives.
-    repeat i in 0..8 {
+    repeat i in 0..12 {
         fact s.$i.on = 0
         fact s.$i.tab = -1
         fact s.$i.x = 0
@@ -74,7 +74,7 @@ scene Bitacora {
     }
     fact tab.cur = 0
     fact panes = 1                       // how many panes the tab in front has
-    model tabs max 6 { name: text; here: bool; g0: number; g1: number; g2: number; g3: number; g4: number; ring: bool; ti: number; tone: number; ag: number }
+    model tabs max 10 { name: text; here: bool; g0: number; g1: number; g2: number; g3: number; g4: number; ring: bool; ti: number; tone: number; ag: number }
     // A beat while an agent works or a wire carries something: the logic turns it, the springs make it a pulse.
     fact beat = 0
     prop pulse = 0 ~calm
@@ -106,6 +106,13 @@ scene Bitacora {
     event agent_beside ->
     // From outside (Calima: `pleamar --say bitacora-PID "emit show_layer N"`): the tab whose shell is that one, in front.
     event show_layer ->
+    // From outside too (Calima's caravan): a tab of its own for a companion —its name, its folder, what to run—,
+    // behind the one in front unless `open.front`.
+    text open.name = ""
+    text open.folder = ""
+    text open.cmd = ""
+    fact open.front = false
+    event open_named ->
     event closed_all ->
     on closed_all { quit }
 
@@ -154,7 +161,8 @@ scene Bitacora {
                             box { from: 2.6 * gc, 2.6 * gr0; size: 2, 2; corner: 0.5; color: if(t.tone >= 0, tcol, if(t.here, acc, dim)); opacity: if(mod(floor(row0 / pow(2, gc)), 2) > 0.5, if(t.here or t.tone >= 0, 100%, 70%), 14%) }
                         }
                     }
-                    text t.name { size: 12.5; weight: if(t.here, 600, 500); family: "Manrope"; color: if(t.here, ink, dim); width: 150; tight: true; lines: 1 }
+                    // (Many tabs, narrower names: they all fit.)
+                    text t.name { size: 12.5; weight: if(t.here, 600, 500); family: "Manrope"; color: if(t.here, ink, dim); width: clamp((W - 200) / max(tabs.count, 1) - 72, 36, 150); tight: true; lines: 1 }
                     // Its agent: working, a dot that breathes; asking you, the amber one.
                     ellipse { radius: 3; color: if(t.tone >= 0, tcol, acc); opacity: 35% + 65% * pulse; show: t.ag == 1 }
                     ellipse { radius: 3.5; color: ASK; show: t.ag == 3 }
@@ -168,7 +176,7 @@ scene Bitacora {
                     on press middle tb { emit close_tab(t.ti) }
                 }
             }
-            row tplus { padding: 8; corner: Rs; cursor: pointer; fill: mix(bg, ink, 0.0); show: tabs.count < 6
+            row tplus { padding: 8; corner: Rs; cursor: pointer; fill: mix(bg, ink, 0.0); show: tabs.count < 10
                 group {
                     size: 13, 13
                     box { from: 6, 1.5; size: 1.6, 10; corner: 0.8; color: dim }
@@ -202,7 +210,7 @@ scene Bitacora {
     let BY = TOP
     let BW = W - 20
     let BH = H - TOP - BOT
-    repeat i in 0..8 {
+    repeat i in 0..12 {
         let here = s.$i.on > 0.5 and s.$i.tab == tab.cur
         let px = BX + s.$i.x * BW + 3
         let py = BY + s.$i.y * BH + 3
@@ -215,8 +223,12 @@ scene Bitacora {
         follow rg.$i = s.$i.ring
         prop fo.$i = 0 ~quick
         follow fo.$i = if(lit and panes > 1, 1, 0)
+        // A tab behind that has just been opened (a companion's, from outside): drawn out of sight until its shell
+        // is up, as the engine starts the terminals it draws.
+        let starting = s.$i.on > 0.5 and not here and term.$i.alive < 0.5
         group {
-            show: here
+            show: here or starting
+            move: if(here, 0, -40000), 0
             box { from: px, py; size: pw, ph; corner: R; color: paper }
             // The one with the keys, among several: its edge in the accent.
             // (A soft halo outside, the line itself inside.)
@@ -349,7 +361,7 @@ scene Bitacora {
     fact menu.y = 0
     fact menu.s = 0
     event menu_do ->
-    repeat i in 0..8 {
+    repeat i in 0..12 {
         on press right term.$i {
             menu.x = pointer.x
             menu.y = pointer.y
@@ -476,8 +488,8 @@ scene Bitacora {
         "Terminal" = "Terminal"
         "A pane beside (Ctrl+Shift+D)" = "Un panel al lado (Ctrl+Mayús+D)"
         "A pane below (Ctrl+Shift+E)" = "Un panel debajo (Ctrl+Mayús+E)"
-        "Six tabs at most: close one first" = "Seis pestañas como mucho: cierra una antes"
-        "Eight shells at most: close one first" = "Ocho terminales como mucho: cierra una antes"
+        "Ten tabs at most: close one first" = "Diez pestañas como mucho: cierra una antes"
+        "Twelve shells at most: close one first" = "Doce terminales como mucho: cierra una antes"
         "Four panes a tab at most" = "Cuatro paneles por pestaña como mucho"
         "A new window" = "Una ventana nueva"
         "A new window could not be opened" = "No se pudo abrir una ventana nueva"

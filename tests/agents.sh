@@ -31,7 +31,8 @@ echo "a line to select and send" > "$T/work/notes.txt"
 # `-e`, later: a window whose first shell is a command.
 cat > "$T/bin/run-e" <<RUNE
 #!/bin/sh
-sleep 14
+# (When the test says: a new window makes the others smaller, and a terminal made smaller loses what is selected.)
+while [ ! -e $T/go-e ]; do sleep 0.3; done
 exec env BITACORA_UI_DIR=$REPO/ui $BIN -e sh -c 'echo "it ran: \$((6*7))"; sleep 600'
 RUNE
 chmod +x "$T/bin/run-e"
@@ -100,6 +101,16 @@ e "emit new_tab"; sleep 1.5
 t1=\$(g tab.cur)
 e "emit show_layer \$p1"; sleep 0.5
 [ "\$(g tab.cur)" != "\$t1" ] && [ "\$(g term.1.focus)" = 1 ] && ok "emit show_layer \$p1: its tab in front and its pane with the keys" || ko "show_layer: tab.cur=\$(g tab.cur) (was \$t1), term.1.focus=\$(g term.1.focus)"
+# A companion's tab asked from outside (Calima's caravan): its own name, behind the tab in front.
+tb=\$(g tab.cur)
+e "text open.name probe2" "text open.folder $T/work" "text open.cmd echo tab-for-probe2" "fact open.front false" "emit open_named"
+sleep 2.5
+np=""; for i in \$(seq 1 20); do np=\$("\$W" term list --json | python3 -c "import json,sys; print(next((x['id'] for x in json.load(sys.stdin)['layers'] if x.get('name')=='probe2' and x.get('terminal')=='\$bpid'), ''))"); [ -n "\$np" ] && break; sleep 0.25; done
+"\$W" term read "\$np" 5 > "$OUT/read-named.txt" 2>&1
+[ -n "\$np" ] && [ "\$(g tab.cur)" = "\$tb" ] && grep -q "^tab-for-probe2" "$OUT/read-named.txt" && ok "emit open_named: a tab named probe2 behind the one in front, and its command ran" || ko "open_named: layer «\$np», tab.cur \$(g tab.cur) (was \$tb), \$(tail -2 "$OUT/read-named.txt")"
+e "text open.name probe2" "fact open.front true" "emit open_named"; sleep 1
+[ "\$(g tab.cur)" != "\$tb" ] && ok "asked again, its tab is brought forward, not opened twice" || ko "again: tab.cur=\$(g tab.cur)"
+e "emit go_tab \$tb"; sleep 0.3
 # «Send to…»: what is selected, to a companion.
 "\$W" link post probe "hello" --from test > /dev/null 2>&1
 "\$W" link mail probe --cancel 1 > /dev/null 2>&1
@@ -134,6 +145,7 @@ for i in \$(seq 1 40); do [ "\$(gc s.0.tone)" = 2 ] && break; sleep 0.25; done
 [ "\$(gc s.0.tone)" = 2 ] && ok "its agent's tab takes the companion's colour and glyph (s.0.tone = 2)" || ko "s.0.tone=\$(gc s.0.tone) s.0.ag=\$(gc s.0.ag)"
 sleep 1; shot 3-companion
 # -e: a command instead of a shell.
+touch "$T/go-e"; sleep 4
 epid=\$(pgrep -n -f "^$BIN -e sh"); el=""
 for l in \$("\$W" term list --json | python3 -c "import json,sys; print(' '.join(str(x['id']) for x in json.load(sys.stdin)['layers'] if x.get('terminal')=='\$epid'))"); do el=\$l; done
 "\$W" term read "\$el" 10 > "$OUT/read-e.txt" 2>&1
