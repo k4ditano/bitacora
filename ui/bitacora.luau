@@ -14,6 +14,8 @@ local function env(name: string): string
     local ok, v = pcall(sys.ask, "env", name)
     return if ok and type(v) == "string" then v else ""
 end
+-- (Under pleamar-wm its shells go through its layer of terminals: there are agents to read.)
+local DATA = if env("XDG_DATA_HOME") ~= "" then env("XDG_DATA_HOME") else HOME .. "/.local/share"
 
 -- A tab: its own number (they do not move when one closes), its panes in order,
 -- how it was first split (0 beside, 1 below) and the pane that had the keys.
@@ -22,6 +24,20 @@ local tabs: { Tab } = {}
 local cur = 0 -- the id of the tab in front
 local next_id = 1
 local alive_seen = {} -- shell → it lived once (to tell an end from a start that failed)
+
+-- ── the agents in its shells (pleamar-wm says, in its session) and the caravan's companions (Calima's) ──
+-- Each shell's agent: its companion's name (the terminal was opened for one), which agent, how it is (0 none,
+-- 1 working, 2 ready, 3 asks you) and its title. Filled every second from `pleamar-wm term list --json`.
+type Agent = { who: string, agent: string, st: number, title: string }
+local agents: { [number]: Agent } = {}
+local pair_of: { [number]: number } = {} -- shell → the shell it is wired to (an agent beside it)
+local pair_flow = 0
+local fichas = {} -- companion id → { nombre, color, glifo }, false while it is read or if there is none
+local in_session = env("PLEAMAR_REAL_SHELL") ~= ""
+-- The companion this window was opened for (`pleamar-wm link open --name`): only its first shell is it.
+local MY_NAME = env("BITACORA_NAME")
+local name_given = false
+local EXEC = env("BITACORA_EXEC")
 
 local function tab_of(id: number): (Tab?, number)
     for k, t in ipairs(tabs) do
@@ -72,10 +88,59 @@ local function glyph_of(name: string): { number }
     return rows
 end
 
--- What a tab is called: what its shell runs, if it says (a title that is not
--- just where it is), or the folder it is in.
+-- A companion's card, as Calima keeps it (`caravana-ID.json`): read once, and the tabs told when it comes.
+local publish_tabs: () -> ()
+local function ficha(id: string)
+    if id == "" or not string.match(id, "^[%w%-_]+$") then
+        return nil
+    end
+    local f = fichas[id]
+    if f ~= nil then
+        return f or nil
+    end
+    fichas[id] = false
+    run("cat", { DATA .. "/pleamar/calima/caravana-" .. id .. ".json" }, function(out, code)
+        local ok, d = pcall(json.decode, tostring(out or ""))
+        if code == 0 and ok and type(d) == "table" then
+            local g = {}
+            for r = 1, 5 do
+                g[r] = math.floor(tonumber(type(d.glifo) == "table" and d.glifo[r]) or 0)
+            end
+            fichas[id] = { nombre = tostring(d.nombre or id), color = math.floor(tonumber(d.color) or 0) % 8, glifo = g }
+            publish_tabs()
+        end
+    end)
+    return nil
+end
+
+local function agent_of(s: number): Agent?
+    local a = agents[s]
+    return if a and a.agent ~= "" then a else nil
+end
+
+-- An agent's name as it is said: «Claude», «Codex».
+local function agent_word(a: Agent): string
+    local f = ficha(a.who)
+    if f then
+        return f.nombre
+    end
+    local w = if a.agent ~= "" then a.agent else tr("Agent")
+    return string.upper(string.sub(w, 1, 1)) .. string.sub(w, 2)
+end
+
+-- What a tab is called: its companion's name; an agent's task (its title, without the sign of how it is);
+-- what its shell runs, if it says (a title that is not just where it is); or the folder it is in.
 local function name_of(t: Tab): string
     local s = t.focus
+    local a = agent_of(s)
+    if a then
+        local f = ficha(a.who)
+        if f then
+            return f.nombre
+        end
+        local task = string.gsub(string.gsub(a.title, "^[^%w%s]+%s*", ""), "%s+$", "")
+        return if task ~= "" then task else agent_word(a)
+    end
     local title = text[string.format("term.%d.title", s)] or ""
     local folder = folder_of(s)
     title = string.gsub(title, "^[%w%._%-]+@[%w%._%-]+:%s*", "")
@@ -90,6 +155,7 @@ local function name_of(t: Tab): string
     return if b ~= "" then b else "~"
 end
 
+local STATE_WORD = { "working", "ready", "asks you" }
 local function publish_status()
     local t = tab_of(cur)
     if t == nil then
@@ -99,7 +165,12 @@ local function publish_status()
     local folder = folder_of(s)
     text["st.where"] = short(folder)
     local title = text[string.format("term.%d.title", s)] or ""
-    text["st.what"] = if name_of(t) ~= base(folder) then name_of(t) else ""
+    local a = agent_of(s)
+    if a then
+        text["st.what"] = agent_word(a) .. " · " .. tr(STATE_WORD[a.st] or "ready")
+    else
+        text["st.what"] = if name_of(t) ~= base(folder) then name_of(t) else ""
+    end
     local cols, rows = tonumber(fact[string.format("term.%d.cols", s)]) or 0, tonumber(fact[string.format("term.%d.rows", s)]) or 0
     text["st.size"] = if cols > 0 then string.format("%d×%d", cols, rows) else ""
     local g = glyph_of(folder)
@@ -109,15 +180,56 @@ local function publish_status()
     local _ = title
 end
 
-local function publish_tabs()
+publish_tabs = function()
     local rows = {}
     for _, t in ipairs(tabs) do
         local name = name_of(t)
         local g = glyph_of(folder_of(t.focus))
-        table.insert(rows, { name = name, here = t.id == cur, g0 = g[1], g1 = g[2], g2 = g[3], g3 = g[4], g4 = g[5], ring = t.ring, ti = t.id })
+        local tone = -1
+        local a = agent_of(t.focus)
+        local f = if a then ficha(a.who) else nil
+        if f then
+            g = f.glifo
+            tone = f.color
+        end
+        -- How its agents are: one that asks you first, then one at work, then the one with the keys.
+        local ag = if a then a.st else 0
+        for _, q in ipairs(t.panes) do
+            local qa = agent_of(q)
+            if qa and qa.st == 3 then
+                ag = 3
+            elseif qa and qa.st == 1 and ag ~= 3 then
+                ag = 1
+            end
+        end
+        table.insert(rows, { name = name, here = t.id == cur, g0 = g[1], g1 = g[2], g2 = g[3], g3 = g[4], g4 = g[5], ring = t.ring, ti = t.id, tone = tone, ag = ag })
     end
     model.tabs = rows
+    for s = 0, MAXS - 1 do
+        local a = agent_of(s)
+        local f = if a then ficha(a.who) else nil
+        fact[string.format("s.%d.ag", s)] = if a then a.st else 0
+        fact[string.format("s.%d.tone", s)] = if f then f.color else -1
+    end
+    -- The wire of an agent beside a pane, in the tab in front.
     local t = tab_of(cur)
+    local pa, pb = -1, -1
+    if t then
+        for _, q in ipairs(t.panes) do
+            local o = pair_of[q]
+            if o ~= nil and pa < 0 then
+                for _, r in ipairs(t.panes) do
+                    if r == o then
+                        pa, pb = q, o
+                    end
+                end
+            end
+        end
+    end
+    fact["pair.a"], fact["pair.b"] = pa, pb
+    local pa_agent = if pb >= 0 then (agent_of(pb) or agent_of(pa)) else nil
+    fact["pair.st"] = if pa_agent then pa_agent.st else 0
+    fact["pair.flow"] = if pa >= 0 then pair_flow else 0
     fact["panes"] = if t then #t.panes else 1
     fact["tab.cur"] = cur
     publish_status()
@@ -169,7 +281,11 @@ end
 local function start_shell(s: number, t: Tab, folder: string)
     local f = string.format("s.%d.", s)
     alive_seen[s] = false
+    agents[s] = nil
     text[f .. "start"] = folder
+    -- The companion this window was opened for is its first shell, and no other: a new tab is yours.
+    text[f .. "env"] = if MY_NAME ~= "" and not name_given then "PLEAMAR_NAME=" .. MY_NAME else ""
+    name_given = name_given or MY_NAME ~= ""
     fact[f .. "tab"] = t.id
     fact[f .. "on"] = 1
 end
@@ -221,12 +337,27 @@ local function new_tab(folder: string?)
     show_tab(t.id)
 end
 
+-- A shell that goes takes its wire with it.
+local function unpair(s: number)
+    local o = pair_of[s]
+    if o == nil then
+        return
+    end
+    pair_of[s], pair_of[o] = nil, nil
+    local pid = math.floor(tonumber(fact[string.format("term.%d.pid", o)]) or 0)
+    if in_session and pid > 0 then
+        run("pleamar-wm", { "term", "unpair", tostring(pid) }, function() end)
+    end
+end
+
 local function close_tab(id: number)
     local t, k = tab_of(id)
     if t == nil then
         return
     end
     for _, s in ipairs(t.panes) do
+        unpair(s)
+        agents[s] = nil
         fact[string.format("s.%d.on", s)] = 0
         fact[string.format("s.%d.tab", s)] = -1
     end
@@ -244,6 +375,8 @@ end
 
 -- A pane goes (its shell ended, or Ctrl+Shift+W): the rest of its tab take its room; its last one takes the tab.
 local function close_shell(s: number)
+    unpair(s)
+    agents[s] = nil
     for _, t in ipairs(tabs) do
         for k, p in ipairs(t.panes) do
             if p == s then
@@ -399,6 +532,15 @@ for s = 0, MAXS - 1 do
     on("fact:" .. p .. "alive", function(v)
         local on_ = (tonumber(fact[string.format("s.%d.on", s)]) or 0) > 0.5
         if (tonumber(v) or 0) > 0.5 then
+            -- `bitacora -e COMMAND`: its first shell becomes that command, and ends with it. (Once its prompt
+            -- is there, so that it is not written twice; cleared, and with a space before it so no history keeps it.)
+            if EXEC ~= "" and not alive_seen[s] then
+                local line = " clear; exec " .. EXEC .. "\r"
+                EXEC = ""
+                after(350, function()
+                    pcall(sys.call, "terminal.write", string.format("term.%d", s), line)
+                end)
+            end
             alive_seen[s] = true
         elseif on_ and alive_seen[s] then
             -- Its shell ended (exit, Ctrl+D): its pane goes, as in any terminal.
@@ -524,6 +666,222 @@ on("find_go", function(v)
     focus("find.q")
 end)
 
+-- ── the agents in its shells: pleamar-wm's layer of terminals says, every second ──
+local looking = false
+local function look_agents()
+    if looking then
+        return
+    end
+    looking = true
+    run("pleamar-wm", { "term", "list", "--json" }, function(out, code)
+        looking = false
+        local ok, d = pcall(json.decode, tostring(out or ""))
+        if code ~= 0 or not ok or type(d) ~= "table" then
+            return
+        end
+        local by = {}
+        for _, l in ipairs(d.layers or {}) do
+            by[math.floor(tonumber(l.id) or -1)] = l
+        end
+        local changed = false
+        for s = 0, MAXS - 1 do
+            local pid = math.floor(tonumber(fact[string.format("term.%d.pid", s)]) or 0)
+            local l = if pid > 0 then by[pid] else nil
+            local a: Agent? = nil
+            if l and tostring(l.agent or "") ~= "" then
+                local hook = tostring(l.hook or "")
+                local st = if hook == "asking" then 3 elseif (if hook ~= "" then hook == "working" else l.state == "working") then 1 else 2
+                a = { who = tostring(l.name or ""), agent = tostring(l.agent), st = st, title = tostring(l.title or "") }
+            end
+            local was = agents[s]
+            if (was == nil) ~= (a == nil) or (was and a and (was.st ~= a.st or was.who ~= a.who or was.title ~= a.title)) then
+                changed = true
+                -- One that finished in a tab behind: its tab gets the dot, as a bell would.
+                if was and a and was.st == 1 and a.st == 2 then
+                    for _, t in ipairs(tabs) do
+                        for _, q in ipairs(t.panes) do
+                            if q == s and t.id ~= cur then
+                                t.ring = true
+                            end
+                        end
+                    end
+                end
+            end
+            agents[s] = a
+        end
+        local flow = 0
+        for _, p in ipairs(d.pairs or {}) do
+            for a, b in pairs(pair_of) do
+                if math.floor(tonumber(fact[string.format("term.%d.pid", a)]) or 0) == math.floor(tonumber(p.a) or -1)
+                    and math.floor(tonumber(fact[string.format("term.%d.pid", b)]) or 0) == math.floor(tonumber(p.b) or -1) then
+                    flow = math.floor(tonumber(p.flow) or 0)
+                end
+            end
+        end
+        if flow ~= pair_flow then
+            pair_flow = flow
+            changed = true
+        end
+        if changed then
+            publish_tabs()
+        end
+    end)
+end
+if in_session then
+    every(1000, look_agents)
+end
+-- The beat: only while something works, so that a window at rest stays at rest.
+every(650, function()
+    local busy = pair_flow ~= 0
+    for _, a in pairs(agents) do
+        if a.st == 1 then
+            busy = true
+        end
+    end
+    if busy or (tonumber(fact["beat"]) or 0) > 0.5 then
+        fact["beat"] = if (tonumber(fact["beat"]) or 0) > 0.5 then 0 else 1
+    end
+end)
+
+-- From outside (Calima's island, «View»): the tab whose shell is that one, in front, and the pane with the keys.
+on("show_layer", function(v)
+    local pid = math.floor(tonumber(v) or -1)
+    for s = 0, MAXS - 1 do
+        if pid > 0 and math.floor(tonumber(fact[string.format("term.%d.pid", s)]) or 0) == pid then
+            for _, t in ipairs(tabs) do
+                for _, q in ipairs(t.panes) do
+                    if q == s then
+                        t.focus = s
+                        show_tab(t.id)
+                        return
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- ── an agent beside the pane with the keys, wired to it: it reads that pane and runs things in it as in a
+-- window wired to its own (`pleamar-wm term pair`) ──
+local AGENT = if env("BITACORA_AGENT") ~= "" then env("BITACORA_AGENT") else "claude"
+local function agent_beside()
+    local t = tab_of(cur)
+    if t == nil then
+        return
+    end
+    local mine = t.focus
+    split(0)
+    local s2 = t.focus
+    if s2 == mine then
+        return
+    end
+    unpair(mine)
+    pair_of[mine], pair_of[s2] = s2, mine
+    publish_tabs()
+    local tries = 0
+    local function start()
+        pcall(sys.call, "terminal.write", string.format("term.%d", s2), AGENT .. "\r")
+    end
+    local function try()
+        tries += 1
+        local p1 = math.floor(tonumber(fact[string.format("term.%d.pid", mine)]) or 0)
+        local p2 = math.floor(tonumber(fact[string.format("term.%d.pid", s2)]) or 0)
+        if not in_session then
+            start()
+            return
+        end
+        if p1 <= 0 or p2 <= 0 then
+            if tries < 24 then
+                after(250, try)
+            end
+            return
+        end
+        -- (Wired before the agent starts: it is told what it is wired to when it starts.)
+        run("pleamar-wm", { "term", "pair", tostring(p1), tostring(p2), "--label", "beside" }, function(_, code)
+            if code ~= 0 and tries < 24 then
+                after(250, try)
+                return
+            end
+            if code ~= 0 then
+                say(tr("The agent could not be wired to this pane"))
+            end
+            start()
+        end)
+    end
+    after(200, try)
+end
+on("agent_beside", agent_beside)
+
+-- ── «Send to…»: what is selected, as a letter to one of the caravan's companions ──
+local sending = ""
+local comp_ids = {}
+local function send_open(s: number)
+    local ok, sel = pcall(sys.ask, "terminal.selection", string.format("term.%d", s))
+    if not ok or type(sel) ~= "string" or sel == "" then
+        say(tr("Select something first"))
+        give_keys(s)
+        return
+    end
+    sending = tr("From my terminal, in %s:"):format(short(folder_of(s))) .. "\n\n```\n" .. sel .. "\n```"
+    run("pleamar-wm", { "link", "caravan", "--json" }, function(out, code)
+        local okj, d = pcall(json.decode, tostring(out or ""))
+        local rows = {}
+        comp_ids = {}
+        if code == 0 and okj and type(d) == "table" then
+            local busy = {}
+            for _, n in ipairs(d.named or {}) do
+                busy[tostring(n.name)] = tostring(n.state or "") == "working"
+            end
+            for _, b in ipairs(d.boxes or {}) do
+                local id = tostring(b.name or "")
+                if id ~= "" and #rows < 10 then
+                    local f = ficha(id)
+                    local g = if f then f.glifo else glyph_of(id)
+                    table.insert(comp_ids, id)
+                    table.insert(rows, { name = if f then f.nombre else id, tone = if f then f.color else 0, g0 = g[1], g1 = g[2], g2 = g[3], g3 = g[4], g4 = g[5], busy = busy[id] == true, ci = #comp_ids })
+                end
+            end
+        end
+        model.comps = rows
+        fact["send.on"] = true
+        -- (The cards of the ones not read yet come in a moment: the names then.)
+        after(400, function()
+            if not fact["send.on"] then
+                return
+            end
+            local again = {}
+            for k, id in ipairs(comp_ids) do
+                local f = ficha(id)
+                local r = rows[k]
+                if f and r then
+                    r.name, r.tone, r.g0, r.g1, r.g2, r.g3, r.g4 = f.nombre, f.color, f.glifo[1], f.glifo[2], f.glifo[3], f.glifo[4], f.glifo[5]
+                end
+                table.insert(again, r)
+            end
+            model.comps = again
+        end)
+    end)
+end
+on("send_to", function(v)
+    local id = comp_ids[math.floor(tonumber(v) or 0)]
+    fact["send.on"] = false
+    local s = math.floor(tonumber(fact["menu.s"]) or 0)
+    give_keys(s)
+    if id == nil or sending == "" then
+        return
+    end
+    local f = ficha(id)
+    local who = if f then f.nombre else id
+    run("pleamar-wm", { "link", "post", id, sending, "--from", "Bitácora" }, function(out, code)
+        if code == 0 then
+            say(tr("Sent to %s"):format(who))
+        else
+            say(tr("%s did not get it: %s"):format(who, string.sub(string.gsub(tostring(out or ""), "%s+$", ""), 1, 80)))
+        end
+    end, { errors = true })
+    sending = ""
+end)
+
 -- ── the menu of the right button ──
 on("menu_do", function(v)
     local k = math.floor(tonumber(v) or -1)
@@ -561,6 +919,12 @@ on("menu_do", function(v)
         return
     elseif k == 9 then
         emit("find_open")
+        return
+    elseif k == 10 then
+        send_open(s)
+        return
+    elseif k == 11 then
+        agent_beside()
         return
     end
     give_keys(s)

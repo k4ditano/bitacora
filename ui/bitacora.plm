@@ -10,7 +10,7 @@ language 0.5
 
 scene Bitacora {
     surface { size: 1120, 720; kind: window; title: "Bitácora"; app_id: "bitacora"; keyboard: on_demand }
-    permissions { run: "git", "cat", "setsid"; services: "env", "files", "files.write" }
+    permissions { run: "git", "cat", "setsid", "pleamar-wm"; services: "env", "files", "files.write" }
 
     font file "fonts/JetBrainsMono-Variable.ttf"
     font file "fonts/JetBrainsMono-Italic-Variable.ttf"
@@ -37,6 +37,8 @@ scene Bitacora {
     let paper = mix(mix(surf, ink, 0.025), mix(#000000, surf, 0.8), th.dk)
     let dim = mix(ink, bg, 0.36)
     let faint = mix(ink, bg, 0.6)
+    // The caravan's colours (Calima's companions), each by its number, a little darker on a light desktop.
+    let ASK = #e0a050
     let R = pick(th.round, 12, 8, 4)
     let Rs = pick(th.round, 9, 6, 3)
     let W = screen.width
@@ -55,18 +57,28 @@ scene Bitacora {
         // The bell: a glow on its edge, that fades.
         fact s.$i.ring = 0
         text s.$i.start = ""
+        // What its shell's environment has of its own (the companion's name, in the first one).
+        text s.$i.env = ""
+        // An agent in it (pleamar-wm says): 0 none, 1 working, 2 ready, 3 asks you; and its companion's colour (-1: none).
+        fact s.$i.ag = 0
+        fact s.$i.tone = -1
         // What the terminal says (the engine fills them).
         fact term.$i.alive = 0
         fact term.$i.focus = 0
         fact term.$i.bell = 0
         fact term.$i.cols = 0
         fact term.$i.rows = 0
+        fact term.$i.pid = 0
         text term.$i.title = ""
         text term.$i.folder = ""
     }
     fact tab.cur = 0
     fact panes = 1                       // how many panes the tab in front has
-    model tabs max 6 { name: text; here: bool; g0: number; g1: number; g2: number; g3: number; g4: number; ring: bool; ti: number }
+    model tabs max 6 { name: text; here: bool; g0: number; g1: number; g2: number; g3: number; g4: number; ring: bool; ti: number; tone: number; ag: number }
+    // A beat while an agent works or a wire carries something: the logic turns it, the springs make it a pulse.
+    fact beat = 0
+    prop pulse = 0 ~calm
+    follow pulse = beat
     // The line under it all: where, on which branch, how big.
     text st.where = ""
     text st.branch = ""
@@ -91,6 +103,9 @@ scene Bitacora {
     event move_focus ->
     event new_window ->
     event zoom_by ->
+    event agent_beside ->
+    // From outside (Calima: `pleamar --say bitacora-PID "emit show_layer N"`): the tab whose shell is that one, in front.
+    event show_layer ->
     event closed_all ->
     on closed_all { quit }
 
@@ -113,6 +128,7 @@ scene Bitacora {
     on key Ctrl+minus { emit zoom_by(-1) }
     on key Ctrl+equal { emit zoom_by(0) }
     on key Ctrl+Shift+equal { emit zoom_by(0) }
+    on key Ctrl+Shift+A { emit agent_beside }
 
     // ═════════════════ the window ═════════════════
     box { from: 0, 0; size: W, H; color: bg }
@@ -125,19 +141,25 @@ scene Bitacora {
         row tabrow { at: 12, 25; anchor: left middle; gap: 6
             for t in tabs {
                 row tb { padding: 8; corner: Rs; gap: 8; cursor: pointer; fill: mix(bg, ink, if(t.here, 0.09, 0.025))
-                    // Its glyph: five rows of five grains, from the name of its folder.
+                    // A companion's tab: its colour.
+                    let tk = max(t.tone, 0)
+                    let tcol = mix(rgb(pick(tk, 0.851, 0.498, 0.761, 0.561, 0.725, 0.878, 0.651, 0.847), pick(tk, 0.627, 0.722, 0.482, 0.643, 0.761, 0.541, 0.561, 0.824), pick(tk, 0.400, 0.643, 0.561, 0.851, 0.482, 0.416, 0.851, 0.784)), ink, if(th.dk > 0.5, 0, 0.3))
+                    // Its glyph: five rows of five grains, from the name of its folder (a companion's, its own).
                     group {
                         size: 13, 13
                         repeat g in 0..25 {
                             let gr0 = floor(g / 5)
                             let gc = mod(g, 5)
                             let row0 = pick(gr0, t.g0, t.g1, t.g2, t.g3, t.g4)
-                            box { from: 2.6 * gc, 2.6 * gr0; size: 2, 2; corner: 0.5; color: if(t.here, acc, dim); opacity: if(mod(floor(row0 / pow(2, gc)), 2) > 0.5, if(t.here, 100%, 70%), 14%) }
+                            box { from: 2.6 * gc, 2.6 * gr0; size: 2, 2; corner: 0.5; color: if(t.tone >= 0, tcol, if(t.here, acc, dim)); opacity: if(mod(floor(row0 / pow(2, gc)), 2) > 0.5, if(t.here or t.tone >= 0, 100%, 70%), 14%) }
                         }
                     }
                     text t.name { size: 12.5; weight: if(t.here, 600, 500); family: "Manrope"; color: if(t.here, ink, dim); width: 150; tight: true; lines: 1 }
-                    // A shell that rang in a tab behind: a dot of the accent.
-                    ellipse { radius: 3; color: acc; show: t.ring and not t.here }
+                    // Its agent: working, a dot that breathes; asking you, the amber one.
+                    ellipse { radius: 3; color: if(t.tone >= 0, tcol, acc); opacity: 35% + 65% * pulse; show: t.ag == 1 }
+                    ellipse { radius: 3.5; color: ASK; show: t.ag == 3 }
+                    // A shell that rang, or an agent that finished, in a tab behind: a dot of the accent.
+                    ellipse { radius: 3; color: acc; show: t.ring and not t.here and t.ag != 1 and t.ag != 3 }
                     row tx { padding: 2; corner: 6; cursor: pointer; show: tabs.count > 1
                         text "×" { size: 13; family: "Manrope"; color: faint }
                         on press tx { emit close_tab(t.ti) }
@@ -187,6 +209,8 @@ scene Bitacora {
         let pw = s.$i.w * BW - 6
         let ph = s.$i.h * BH - 6
         let lit = term.$i.focus > 0.5
+        let pk = max(s.$i.tone, 0)
+        let ptone = mix(rgb(pick(pk, 0.851, 0.498, 0.761, 0.561, 0.725, 0.878, 0.651, 0.847), pick(pk, 0.627, 0.722, 0.482, 0.643, 0.761, 0.541, 0.561, 0.824), pick(pk, 0.400, 0.643, 0.561, 0.851, 0.482, 0.416, 0.851, 0.784)), ink, if(th.dk > 0.5, 0, 0.3))
         prop rg.$i = 0 ~calm
         follow rg.$i = s.$i.ring
         prop fo.$i = 0 ~quick
@@ -196,8 +220,8 @@ scene Bitacora {
             box { from: px, py; size: pw, ph; corner: R; color: paper }
             // The one with the keys, among several: its edge in the accent.
             // (A soft halo outside, the line itself inside.)
-            box { from: px - 2, py - 2; size: pw + 4, ph + 4; corner: R + 2; stroke: 3; color: acc; opacity: 9% * fo.$i + 18% * rg.$i }
-            box { from: px, py; size: pw, ph; corner: R; stroke: 1.2; color: acc; opacity: 58% * fo.$i + 70% * rg.$i }
+            box { from: px - 2, py - 2; size: pw + 4, ph + 4; corner: R + 2; stroke: 3; color: if(s.$i.ag == 3, ASK, if(s.$i.tone >= 0, ptone, acc)); opacity: 9% * fo.$i + 18% * rg.$i }
+            box { from: px, py; size: pw, ph; corner: R; stroke: 1.2; color: if(s.$i.ag == 3, ASK, if(s.$i.tone >= 0, ptone, acc)); opacity: 58% * fo.$i + 70% * rg.$i }
             box { from: px, py; size: pw, ph; corner: R; stroke: 1; color: ink; opacity: 5% * (1 - fo.$i) * (1 - rg.$i) }
             terminal term.$i {
                 at: px + 14, py + 10
@@ -207,6 +231,7 @@ scene Bitacora {
                 line_height: 1.28
                 run: s.$i.on
                 folder: s.$i.start
+                env: s.$i.env
                 // Ink and paper, then the sixteen: dark ones for a light desktop, light ones for a dark one.
                 colors: ink, paper, mix(#3a3f45, #23272b, th.dk), mix(#b5483a, #e07a6c, th.dk), mix(#4d7a3f, #9cc48e, th.dk), mix(#93701f, #e3c07a, th.dk), mix(#3a62a0, #84a9e0, th.dk), mix(#83508f, #c493d6, th.dk), mix(#2e7f78, #7fc4bd, th.dk), mix(#6b6660, #d8d2c8, th.dk), mix(#6b7178, #5c6168, th.dk), mix(#c95646, #f09284, th.dk), mix(#5a8c4a, #b4d8a4, th.dk), mix(#a8822a, #f0d292, th.dk), mix(#4a74b4, #9fbff0, th.dk), mix(#9762a3, #d6abe6, th.dk), mix(#3a9088, #98d8d0, th.dk), mix(#2a2622, #f6f2ec, th.dk)
                 cursor: acc
@@ -214,6 +239,34 @@ scene Bitacora {
                 opacity: if(lit or panes < 2, 100%, 78%)
                 label: "Terminal"
             }
+        }
+    }
+
+    // ── an agent beside a pane, wired to it (`pleamar-wm term pair`): a knot of grains across the gap between
+    // the two, that carries a wave while something goes along it or the agent works ──
+    fact pair.a = -1
+    fact pair.b = -1
+    fact pair.flow = 0
+    fact pair.st = 0
+    let qa = max(pair.a, 0)
+    let qb = max(pair.b, 0)
+    group {
+        show: pair.a >= 0 and pair.b >= 0 and s[qa].tab == tab.cur and s[qb].tab == tab.cur
+        // Side by side (the edge between them is up and down), or one under the other.
+        let side = abs(s[qa].x + s[qa].w - s[qb].x) < 0.01 or abs(s[qb].x + s[qb].w - s[qa].x) < 0.01
+        let kx = if(side, BX + max(s[qa].x, s[qb].x) * BW, BX + (max(s[qa].x, s[qb].x) + min(s[qa].x + s[qa].w, s[qb].x + s[qb].w)) / 2 * BW)
+        let ky = if(side, BY + (max(s[qa].y, s[qb].y) + min(s[qa].y + s[qa].h, s[qb].y + s[qb].h)) / 2 * BH, BY + max(s[qa].y, s[qb].y) * BH)
+        let kw = if(side, 30, 12)
+        let kh = if(side, 12, 30)
+        // (Which way the wave goes: from the one that acts to the other.)
+        let way = if(pair.flow < 0, -1, 1)
+        box { from: kx - kw / 2, ky - kh / 2; size: kw, kh; corner: 6; color: mix(bg, ink, 0.1) }
+        box { from: kx - kw / 2, ky - kh / 2; size: kw, kh; corner: 6; stroke: 1; color: if(pair.st == 3, ASK, acc); opacity: 55% }
+        repeat g in 0..4 {
+            let at = (g - 1.5) * 6
+            let wave = clamp(1 - abs(if(way > 0, g, 3 - g) - pulse * 4 + 0.5) / 1.4, 0, 1)
+            let busy = pair.flow != 0 or pair.st == 1
+            box { from: kx + if(side, at, 0) - 1.5, ky + if(side, 0, at) - 1.5; size: 3, 3; corner: 0.8; color: if(pair.st == 3, ASK, acc); opacity: if(busy, 30% + 70% * wave, 60%) }
         }
     }
 
@@ -312,7 +365,7 @@ scene Bitacora {
     on press shield { menu.on = false }
     on press right shield { menu.on = false }
     let MW = 236
-    let MH = 10 * 30 + 2 * 9 + 12
+    let MH = 12 * 30 + 2 * 9 + 12
     let mx = clamp(menu.x, 8, W - MW - 8)
     let my = clamp(menu.y, 8, H - MH - 8)
     group {
@@ -335,14 +388,59 @@ scene Bitacora {
         Item(1, my + 36, "Paste", "Ctrl+Shift+V")
         Item(2, my + 66, "Select all", "")
         Item(9, my + 96, "Find", "Ctrl+Shift+F")
-        box { from: mx + 14, my + 129; size: MW - 28, 1; color: ink; opacity: 8% }
-        Item(3, my + 135, "Pane beside", "Ctrl+Shift+D")
-        Item(4, my + 165, "Pane below", "Ctrl+Shift+E")
-        Item(5, my + 195, "New tab", "Ctrl+Shift+T")
-        box { from: mx + 14, my + 228; size: MW - 28, 1; color: ink; opacity: 8% }
-        Item(6, my + 234, "Forget its history", "")
-        Item(7, my + 264, "New window", "Ctrl+Shift+N")
-        Item(8, my + 294, "Close pane", "Ctrl+Shift+W")
+        Item(10, my + 126, "Send to…", "")
+        box { from: mx + 14, my + 159; size: MW - 28, 1; color: ink; opacity: 8% }
+        Item(3, my + 165, "Pane beside", "Ctrl+Shift+D")
+        Item(4, my + 195, "Pane below", "Ctrl+Shift+E")
+        Item(11, my + 225, "Agent beside", "Ctrl+Shift+A")
+        Item(5, my + 255, "New tab", "Ctrl+Shift+T")
+        box { from: mx + 14, my + 288; size: MW - 28, 1; color: ink; opacity: 8% }
+        Item(6, my + 294, "Forget its history", "")
+        Item(7, my + 324, "New window", "Ctrl+Shift+N")
+        Item(8, my + 354, "Close pane", "Ctrl+Shift+W")
+    }
+
+    // ── «Send to…»: what is selected, as a letter to one of the caravan's companions (Calima's) ──
+    fact send.on = false
+    model comps max 10 { name: text; tone: number; g0: number; g1: number; g2: number; g3: number; g4: number; busy: bool; ci: number }
+    event send_to ->
+    on key Escape while send.on { send.on = false }
+    zone box shield2 { from: 0, 0; size: W, H; active: send.on; agent: hidden }
+    on press shield2 { send.on = false }
+    prop sp = 0 ~quick
+    follow sp = if(send.on, 1, 0)
+    let SH = 40 + max(comps.count, 1) * 30 + 8
+    let sx = clamp(menu.x, 8, W - MW - 8)
+    let sy = clamp(menu.y, 8, H - SH - 8)
+    group {
+        show: sp > 0.01
+        opacity: sp
+        move: 0, -6 * (1 - sp)
+        box { from: sx + 2, sy + 6; size: MW, SH; corner: R; color: #000000; opacity: 22% }
+        box { from: sx, sy; size: MW, SH; corner: R; color: mix(bg, ink, 0.075) }
+        box { from: sx, sy; size: MW, SH; corner: R; stroke: 1; color: ink; opacity: 9% }
+        text "Send what is selected to" { at: sx + 16, sy + 21; anchor: left center; size: 11; weight: 600; family: "Manrope"; color: faint }
+        text "No companions: Calima's caravan has none" { at: sx + 16, sy + 54; anchor: left center; size: 12; family: "Manrope"; color: dim; width: MW - 32; lines: 1; show: comps.count == 0 }
+        column { at: sx + 6, sy + 38; gap: 2
+            for c in comps {
+                row cr { size: MW - 12, 28; padding: 10; gap: 10; corner: Rs; cursor: pointer
+                    let ck = max(c.tone, 0)
+                    let ccol = mix(rgb(pick(ck, 0.851, 0.498, 0.761, 0.561, 0.725, 0.878, 0.651, 0.847), pick(ck, 0.627, 0.722, 0.482, 0.643, 0.761, 0.541, 0.561, 0.824), pick(ck, 0.400, 0.643, 0.561, 0.851, 0.482, 0.416, 0.851, 0.784)), ink, if(th.dk > 0.5, 0, 0.3))
+                    group {
+                        size: 11, 11
+                        repeat g in 0..25 {
+                            let gr0 = floor(g / 5)
+                            let gc = mod(g, 5)
+                            let row0 = pick(gr0, c.g0, c.g1, c.g2, c.g3, c.g4)
+                            box { from: 2.2 * gc, 2.2 * gr0; size: 1.7, 1.7; corner: 0.4; color: ccol; opacity: if(mod(floor(row0 / pow(2, gc)), 2) > 0.5, 100%, 14%) }
+                        }
+                    }
+                    text c.name { size: 12.5; weight: 500; family: "Manrope"; color: ink; width: MW - 80; tight: true; lines: 1 }
+                    ellipse { radius: 2.5; color: ccol; opacity: 35% + 65% * pulse; show: c.busy }
+                    on press cr { emit send_to(c.ci) }
+                }
+            }
+        }
     }
 
     // ── a word that comes and goes ──
@@ -393,5 +491,20 @@ scene Bitacora {
         "Stop looking" = "Dejar de buscar"
         "Find" = "Buscar"
         "Ctrl+Shift+F" = "Ctrl+Mayús+F"
+        "Ctrl+Shift+A" = "Ctrl+Mayús+A"
+        "Send to…" = "Enviar a…"
+        "Agent beside" = "Agente al lado"
+        "Send what is selected to" = "Enviar lo seleccionado a"
+        "No companions: Calima's caravan has none" = "No hay compañeros: la caravana de Calima no tiene"
+        "Select something first" = "Selecciona algo antes"
+        "Sent to %s" = "Enviado a %s"
+        "%s did not get it: %s" = "%s no lo recibió: %s"
+        "From my terminal, in %s:" = "Desde mi terminal, en %s:"
+        "working" = "trabajando"
+        "asks you" = "te pregunta"
+        "ready" = "listo"
+        "Agent" = "Agente"
+        "An agent beside, wired to this pane" = "Un agente al lado, con cable a este panel"
+        "The agent could not be wired to this pane" = "No se pudo poner el cable entre el agente y este panel"
     }
 }

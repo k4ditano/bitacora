@@ -38,6 +38,31 @@ binario con sus fuentes.
   capa de terminales, así que `pleamar-wm agent` los lee y ejecuta órdenes en
   ellos como en cualquier otra terminal.
 
+## Con agentes
+
+En una sesión de pleamar-wm, Bitácora le pregunta cada segundo por sus shells
+(`pleamar-wm term list --json`) y enseña lo que sabe:
+
+- **Una pestaña con un agente** (Claude Code, Codex…) se llama como su tarea, y
+  un punto dice cómo está: respira mientras trabaja, ámbar si te pregunta algo.
+  Uno que acaba en una pestaña de atrás le deja un punto, como una campana; la
+  línea de abajo dice «Claude · trabajando».
+- **La pestaña de un compañero.** Abierta para uno de los compañeros de la
+  caravana (los de [Calima](https://github.com/k4ditano/calima), `pleamar-wm
+  link open --name`), su primera pestaña —y ninguna otra— es ese compañero: su
+  nombre, su glifo y su color, de su ficha.
+- **Un agente al lado** (Ctrl+Mayús+A): un panel al lado del tuyo con Claude
+  (`BITACORA_AGENT` dice otro), y un cable entre los dos (`pleamar-wm term
+  pair`), dibujado como un nudo de granos que lleva una ola mientras algo va por
+  él. Para ese agente tu panel es una ventana más con cable a la suya: lo lee y
+  ejecuta cosas en él con sus herramientas de `link`.
+- **Enviar a…** (botón derecho): lo seleccionado, como carta a un compañero
+  (`pleamar-wm link post`).
+- **Su pestaña, desde fuera.** Cada ventana atiende a `pleamar --say
+  bitacora-PID`, y `emit show_layer N` pone delante la pestaña cuyo shell es la
+  capa `N` de pleamar-wm: la isla de Calima te lleva a la pestaña misma de un
+  agente.
+
 ## Teclas
 
 | | |
@@ -52,9 +77,10 @@ binario con sus fuentes.
 | Ctrl++ / Ctrl+- / Ctrl+= (Ctrl+Mayús+0 en un teclado español) | más grande, más pequeña, como estaba |
 | Ctrl+Mayús+N | una ventana nueva |
 | Ctrl+Mayús+F | buscar en su historial: Intro, la anterior; las flechas, arriba y abajo; Esc, terminar |
+| Ctrl+Mayús+A | un agente al lado, con cable al panel en el que estás |
 
-El botón derecho abre un menú con lo mismo, y con *Seleccionar todo* y
-*Olvidar su historial*.
+El botón derecho abre un menú con lo mismo, y con *Seleccionar todo*,
+*Enviar a…* y *Olvidar su historial*.
 
 ## Instalar
 
@@ -66,7 +92,8 @@ git clone https://github.com/k4ditano/bitacora && cd bitacora
 sh install.sh      # ~/.local/bin/bitacora, su entrada en las aplicaciones y su icono
 ```
 
-`bitacora [CARPETA]` abre una ventana ahí (donde estés, si no se dice). Cada
+`bitacora [CARPETA]` abre una ventana ahí (donde estés, si no se dice);
+`bitacora -e ORDEN …` ejecuta eso en vez de un shell, y se cierra con ello. Cada
 ventana es su propio proceso: instalar una Bitácora nueva deja las abiertas
 con sus shells.
 

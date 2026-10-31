@@ -37,6 +37,30 @@ logic (`ui/bitacora.luau`), carried inside one binary with its fonts.
   terminals, so `pleamar-wm agent` reads them and runs commands in them as in
   any other terminal.
 
+## With agents
+
+In a pleamar-wm session Bitácora asks it every second about its shells
+(`pleamar-wm term list --json`), and shows what it learns:
+
+- **A tab with an agent** (Claude Code, Codex…) is named after its task, and a
+  dot says how it is: breathing while it works, amber when it asks you
+  something. One that finishes in a tab behind leaves a dot, as a bell does;
+  the line under it all says «Claude · working».
+- **A companion's tab.** Opened for one of the caravan's companions
+  ([Calima](https://github.com/k4ditano/calima)'s, `pleamar-wm link open
+  --name`), its first tab —and no other— is that companion: its name, its glyph
+  and its colour, from its card.
+- **An agent beside** (Ctrl+Shift+A): a pane beside the one you are in, with
+  Claude in it (`BITACORA_AGENT` says another), and a wire between the two
+  (`pleamar-wm term pair`), drawn as a knot of grains that carries a wave while
+  something goes along it. For that agent your pane is one more window wired to
+  its own: it reads it and runs things in it with its `link` tools.
+- **Send to…** (the right button): what is selected, as a letter to a
+  companion (`pleamar-wm link post`).
+- **Its tab, from outside.** Each window answers to `pleamar --say
+  bitacora-PID`, and `emit show_layer N` brings forward the tab whose shell is
+  pleamar-wm's layer `N`: Calima's island takes you to an agent's very tab.
+
 ## Keys
 
 | | |
@@ -51,9 +75,10 @@ logic (`ui/bitacora.luau`), carried inside one binary with its fonts.
 | Ctrl++ / Ctrl+- / Ctrl+= (Ctrl+Shift+= on some keyboards) | bigger, smaller, as it was |
 | Ctrl+Shift+N | a new window |
 | Ctrl+Shift+F | find in its history: Enter, the one before; the arrows, up and down; Esc, done |
+| Ctrl+Shift+A | an agent beside, wired to the pane you are in |
 
-The right button opens a menu with the same, and with *Select all* and
-*Forget its history*.
+The right button opens a menu with the same, and with *Select all*, *Send
+to…* and *Forget its history*.
 
 ## Install
 
@@ -65,7 +90,8 @@ git clone https://github.com/k4ditano/bitacora && cd bitacora
 sh install.sh      # ~/.local/bin/bitacora, its entry among the applications and its icon
 ```
 
-`bitacora [FOLDER]` opens a window there (where you are, if not said). Each
+`bitacora [FOLDER]` opens a window there (where you are, if not said);
+`bitacora -e COMMAND …` runs that instead of a shell, and closes with it. Each
 window is its own process: installing a new Bitácora leaves the open ones
 with their shells.
 
