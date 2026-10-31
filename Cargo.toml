@@ -1,0 +1,13 @@
+[package]
+name = "bitacora"
+version = "0.1.0"
+edition = "2024"
+description = "Bitácora: the terminal of pleamar's desktop, drawn by pleamar itself"
+license = "MIT"
+
+[dependencies]
+pleamar = { path = "../calima/tmp/build-term/pleamar" }
+
+[profile.release]
+debug = false
+lto = "thin"

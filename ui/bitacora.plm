@@ -1,0 +1,255 @@
+// Bitácora — the terminal of pleamar's desktop.
+//
+// The terminal is pleamar's own (`terminal`): a shell on a pty, drawn by the
+// engine with these letters. Around it, what a terminal of this desktop has:
+// tabs with a glyph of grains of their own, panes side by side or one under
+// another as cards of mist, the desktop's colours (Calima's Taller, when it
+// says them: the logic reads them), and a line under it all that says where
+// you are and on which branch. The logic is bitacora.luau.
+language 0.5
+
+scene Bitacora {
+    surface { size: 1120, 720; kind: window; title: "Bitácora"; app_id: "bitacora"; keyboard: on_demand }
+    permissions { run: "git", "cat"; services: "env", "files", "files.write", "apps.launch" }
+
+    font file "fonts/JetBrainsMono-Variable.ttf"
+    font file "fonts/JetBrainsMono-Italic-Variable.ttf"
+    font file "fonts/Manrope-Variable.ttf"
+    font file "fonts/Newsreader-Variable.ttf"
+
+    // ── the look: the desktop's, when it says one ──
+    fact th.ar = 0.498
+    fact th.ag = 0.722
+    fact th.ab = 0.643
+    fact th.sr = 0.153
+    fact th.sg = 0.173
+    fact th.sb = 0.165
+    fact th.ir = 0.882
+    fact th.ig = 0.906
+    fact th.ib = 0.898
+    fact th.dk = 1
+    fact th.round = 1
+    let acc = rgb(th.ar, th.ag, th.ab)
+    let surf = rgb(th.sr, th.sg, th.sb)
+    let ink = rgb(th.ir, th.ig, th.ib)
+    // Dark: the surface sunk into the night, as Calima's mist; light: the surface as it is.
+    let bg = mix(surf, mix(#000000, surf, 0.62), th.dk)
+    let paper = mix(mix(surf, ink, 0.025), mix(#000000, surf, 0.8), th.dk)
+    let dim = mix(ink, bg, 0.36)
+    let faint = mix(ink, bg, 0.6)
+    let R = pick(th.round, 12, 8, 4)
+    let Rs = pick(th.round, 9, 6, 3)
+    let W = screen.width
+    let H = screen.height
+
+    // ── its terminals: eight shells at most, in up to six tabs, up to four panes a tab ──
+    fact zoom = 13.5
+    // Where each pane is in its tab, as fractions of the body; its tab; whether it lives.
+    repeat i in 0..8 {
+        fact s.$i.on = 0
+        fact s.$i.tab = -1
+        fact s.$i.x = 0
+        fact s.$i.y = 0
+        fact s.$i.w = 1
+        fact s.$i.h = 1
+        // The bell: a glow on its edge, that fades.
+        fact s.$i.ring = 0
+        text s.$i.start = ""
+        // What the terminal says (the engine fills them).
+        fact term.$i.alive = 0
+        fact term.$i.focus = 0
+        fact term.$i.bell = 0
+        fact term.$i.cols = 0
+        fact term.$i.rows = 0
+        text term.$i.title = ""
+        text term.$i.folder = ""
+    }
+    fact tab.cur = 0
+    fact panes = 1                       // how many panes the tab in front has
+    model tabs max 6 { name: text; here: bool; g0: number; g1: number; g2: number; g3: number; g4: number; ring: bool; ti: number }
+    // The line under it all: where, on which branch, how big.
+    text st.where = ""
+    text st.branch = ""
+    text st.size = ""
+    text st.what = ""
+    fact st.git = false
+    fact st.g0 = 0
+    fact st.g1 = 0
+    fact st.g2 = 0
+    fact st.g3 = 0
+    fact st.g4 = 0
+    // A word that comes and goes (copied, a new window).
+    text toast = ""
+    fact toast.on = false
+
+    event new_tab ->
+    event close_pane ->
+    event close_tab ->
+    event split ->
+    event go_tab ->
+    event next_tab ->
+    event move_focus ->
+    event new_window ->
+    event zoom_by ->
+    event closed_all ->
+    on closed_all { quit }
+
+    // ── its shortcuts: the scene's, so the shells do not get them ──
+    on key Ctrl+Shift+T { emit new_tab }
+    on key Ctrl+Shift+W { emit close_pane }
+    on key Ctrl+Shift+D { emit split(0) }
+    on key Ctrl+Shift+E { emit split(1) }
+    on key Ctrl+Shift+N { emit new_window }
+    on key Ctrl+Tab { emit next_tab(1) }
+    on key Ctrl+Shift+ISO_Left_Tab { emit next_tab(-1) }
+    on key Ctrl+Next { emit next_tab(1) }
+    on key Ctrl+Prior { emit next_tab(-1) }
+    on key Alt+Left { emit move_focus(0) }
+    on key Alt+Right { emit move_focus(1) }
+    on key Alt+Up { emit move_focus(2) }
+    on key Alt+Down { emit move_focus(3) }
+    on key Ctrl+plus { emit zoom_by(1) }
+    on key Ctrl+Shift+plus { emit zoom_by(1) }
+    on key Ctrl+minus { emit zoom_by(-1) }
+    on key Ctrl+equal { emit zoom_by(0) }
+
+    // ═════════════════ the window ═════════════════
+    box { from: 0, 0; size: W, H; color: bg }
+
+    // ── the tabs ──
+    let TOP = 46
+    let BOT = 30
+    group {
+        clip box { from: 8, 4; size: W - 120, 40 }
+        row tabrow { at: 12, 25; anchor: left middle; gap: 6
+            for t in tabs {
+                row tb { padding: 8; corner: Rs; gap: 8; cursor: pointer; fill: mix(bg, ink, if(t.here, 0.09, 0.025))
+                    // Its glyph: five rows of five grains, from the name of its folder.
+                    group {
+                        size: 13, 13
+                        repeat g in 0..25 {
+                            let gr0 = floor(g / 5)
+                            let gc = mod(g, 5)
+                            let row0 = pick(gr0, t.g0, t.g1, t.g2, t.g3, t.g4)
+                            box { from: 2.6 * gc, 2.6 * gr0; size: 2, 2; corner: 0.5; color: if(t.here, acc, dim); opacity: if(mod(floor(row0 / pow(2, gc)), 2) > 0.5, if(t.here, 100%, 70%), 14%) }
+                        }
+                    }
+                    text t.name { size: 12.5; weight: if(t.here, 600, 500); family: "Manrope"; color: if(t.here, ink, dim); width: 150; tight: true; lines: 1 }
+                    // A shell that rang in a tab behind: a dot of the accent.
+                    ellipse { radius: 3; color: acc; show: t.ring and not t.here }
+                    row tx { padding: 2; corner: 6; cursor: pointer; show: tabs.count > 1
+                        text "×" { size: 13; family: "Manrope"; color: faint }
+                        on press tx { emit close_tab(t.ti) }
+                    }
+                    on press tb { emit go_tab(t.ti) }
+                    on press middle tb { emit close_tab(t.ti) }
+                }
+            }
+            row tplus { padding: 8; corner: Rs; cursor: pointer; fill: mix(bg, ink, 0.0); show: tabs.count < 6
+                group {
+                    size: 13, 13
+                    box { from: 6, 1.5; size: 1.6, 10; corner: 0.8; color: dim }
+                    box { from: 1.5, 6; size: 10, 1.6; corner: 0.8; color: dim }
+                }
+                on press tplus { emit new_tab }
+            }
+        }
+    }
+    // The right of the tabs: a pane beside, a pane below.
+    group {
+        component SplitBtn(k: number, x: number) {
+            group {
+                zone box b { from: x, 9; size: 32, 30; corner: Rs; cursor: pointer; active: panes < 4; label: pick(k, "A pane beside (Ctrl+Shift+D)", "A pane below (Ctrl+Shift+E)") }
+                box { from: x, 9; size: 32, 30; corner: Rs; color: ink; opacity: 7% * b.hover }
+                group {
+                    opacity: if(panes < 4, 80%, 25%)
+                    box { from: x + 8, 16; size: 16, 16; corner: 3.5; stroke: 1.4; color: dim }
+                    box { from: x + 15.3, 17; size: 1.4, 14; color: dim; show: k == 0 }
+                    box { from: x + 9, 23.3; size: 14, 1.4; color: dim; show: k == 1 }
+                }
+                on press b { emit split(k) }
+            }
+        }
+        SplitBtn(0, W - 84)
+        SplitBtn(1, W - 48)
+    }
+
+    // ── the panes: a card of mist each, the terminal in it ──
+    let BX = 10
+    let BY = TOP
+    let BW = W - 20
+    let BH = H - TOP - BOT
+    repeat i in 0..8 {
+        let here = s.$i.on > 0.5 and s.$i.tab == tab.cur
+        let px = BX + s.$i.x * BW + 3
+        let py = BY + s.$i.y * BH + 3
+        let pw = s.$i.w * BW - 6
+        let ph = s.$i.h * BH - 6
+        let lit = term.$i.focus > 0.5
+        prop rg.$i = 0 ~calm
+        follow rg.$i = s.$i.ring
+        prop fo.$i = 0 ~quick
+        follow fo.$i = if(lit and panes > 1, 1, 0)
+        group {
+            show: here
+            box { from: px, py; size: pw, ph; corner: R; color: paper }
+            // The one with the keys, among several: its edge in the accent.
+            box { from: px, py; size: pw, ph; corner: R; stroke: 1.2; color: acc; opacity: 45% * fo.$i + 60% * rg.$i }
+            box { from: px, py; size: pw, ph; corner: R; stroke: 1; color: ink; opacity: 5% * (1 - fo.$i) * (1 - rg.$i) }
+            terminal term.$i {
+                at: px + 14, py + 10
+                size: pw - 24, ph - 16
+                family: "JetBrains Mono"
+                font_size: zoom
+                line_height: 1.28
+                run: s.$i.on
+                folder: s.$i.start
+                // Ink and paper, then the sixteen: dark ones for a light desktop, light ones for a dark one.
+                colors: ink, paper, mix(#3a3f45, #23272b, th.dk), mix(#b5483a, #e07a6c, th.dk), mix(#4d7a3f, #9cc48e, th.dk), mix(#93701f, #e3c07a, th.dk), mix(#3a62a0, #84a9e0, th.dk), mix(#83508f, #c493d6, th.dk), mix(#2e7f78, #7fc4bd, th.dk), mix(#6b6660, #d8d2c8, th.dk), mix(#6b7178, #5c6168, th.dk), mix(#c95646, #f09284, th.dk), mix(#5a8c4a, #b4d8a4, th.dk), mix(#a8822a, #f0d292, th.dk), mix(#4a74b4, #9fbff0, th.dk), mix(#9762a3, #d6abe6, th.dk), mix(#3a9088, #98d8d0, th.dk), mix(#2a2622, #f6f2ec, th.dk)
+                cursor: acc
+                selection: mix(paper, acc, 0.38)
+                opacity: if(lit or panes < 2, 100%, 78%)
+                label: "Terminal"
+            }
+        }
+    }
+
+    // ── the line under it all ──
+    group {
+        let ly = H - BOT / 2
+        // Where: the folder of the shell with the keys, its glyph before it.
+        repeat g in 0..25 {
+            let gr0 = floor(g / 5)
+            let gc = mod(g, 5)
+            let row0 = pick(gr0, st.g0, st.g1, st.g2, st.g3, st.g4)
+            box { from: 16 + 2.2 * gc, ly - 5.5 + 2.2 * gr0; size: 1.7, 1.7; corner: 0.4; color: acc; opacity: if(mod(floor(row0 / pow(2, gc)), 2) > 0.5, 90%, 14%) }
+        }
+        text st.where { at: 34, ly; anchor: left center; size: 11.5; family: "JetBrains Mono"; color: dim; width: W * 0.55; lines: 1 }
+        measure stw
+        text st.where { at: -4000, -4000; size: 11.5; family: "JetBrains Mono"; opacity: 0%; measure: stw }
+        group {
+            show: st.git
+            let bx2 = 34 + min(stw.width, W * 0.55) + 14
+            // A branch: a small fork of grains.
+            ellipse { at: bx2 + 3, ly - 3.5; radius: 1.6; color: acc }
+            ellipse { at: bx2 + 3, ly + 3.5; radius: 1.6; color: acc }
+            ellipse { at: bx2 + 8, ly - 3.5; radius: 1.6; color: acc; opacity: 70% }
+            text st.branch { at: bx2 + 15, ly; anchor: left center; size: 11.5; family: "JetBrains Mono"; color: acc; width: 200; lines: 1 }
+        }
+        text st.what { at: W - 104, ly; anchor: right center; size: 11.5; family: "Manrope"; color: faint; width: W * 0.3; lines: 1; align: right }
+        text st.size { at: W - 18, ly; anchor: right center; size: 11.5; family: "JetBrains Mono"; color: faint }
+    }
+
+    // ── a word that comes and goes ──
+    prop tp = 0 ~calm
+    follow tp = if(toast.on, 1, 0)
+    group {
+        show: tp > 0.01
+        opacity: tp
+        move: 0, 8 * (1 - tp)
+        measure tm
+        text toast { at: -4000, -4000; size: 12.5; family: "Manrope"; opacity: 0%; measure: tm }
+        box { from: W / 2 - tm.width / 2 - 16, H - BOT - 52; size: tm.width + 32, 34; corner: 17; color: mix(bg, ink, 0.12) }
+        text toast { at: W / 2, H - BOT - 35; anchor: center; size: 12.5; weight: 600; family: "Manrope"; color: ink }
+    }
+}
