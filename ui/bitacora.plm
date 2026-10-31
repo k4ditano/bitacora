@@ -112,6 +112,7 @@ scene Bitacora {
     on key Ctrl+Shift+plus { emit zoom_by(1) }
     on key Ctrl+minus { emit zoom_by(-1) }
     on key Ctrl+equal { emit zoom_by(0) }
+    on key Ctrl+Shift+equal { emit zoom_by(0) }
 
     // ═════════════════ the window ═════════════════
     box { from: 0, 0; size: W, H; color: bg }
@@ -194,7 +195,9 @@ scene Bitacora {
             show: here
             box { from: px, py; size: pw, ph; corner: R; color: paper }
             // The one with the keys, among several: its edge in the accent.
-            box { from: px, py; size: pw, ph; corner: R; stroke: 1.2; color: acc; opacity: 45% * fo.$i + 60% * rg.$i }
+            // (A soft halo outside, the line itself inside.)
+            box { from: px - 2, py - 2; size: pw + 4, ph + 4; corner: R + 2; stroke: 3; color: acc; opacity: 9% * fo.$i + 18% * rg.$i }
+            box { from: px, py; size: pw, ph; corner: R; stroke: 1.2; color: acc; opacity: 58% * fo.$i + 70% * rg.$i }
             box { from: px, py; size: pw, ph; corner: R; stroke: 1; color: ink; opacity: 5% * (1 - fo.$i) * (1 - rg.$i) }
             terminal term.$i {
                 at: px + 14, py + 10

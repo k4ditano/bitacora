@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=Bitácora
+GenericName=Terminal
+GenericName[es]=Terminal
+Comment=The terminal of pleamar's desktop: tabs, panes and the desktop's colours
+Comment[es]=La terminal del escritorio de pleamar: pestañas, paneles y los colores del escritorio
+Exec=bitacora %f
+Icon=bitacora
+Terminal=false
+Categories=System;TerminalEmulator;
+Keywords=terminal;shell;console;command;prompt;consola;
+StartupWMClass=bitacora
