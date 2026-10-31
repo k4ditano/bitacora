@@ -462,12 +462,49 @@ on("new_window", function()
     local t = tab_of(cur)
     local where = if t then folder_of(t.focus) else ""
     local bin = env("BITACORA_BIN")
-    local q = function(x: string): string
-        return "'" .. string.gsub(x, "'", "'\\''") .. "'"
+    -- (Loose from this one, `setsid -f`: closing this window does not take the new one with it.)
+    run("setsid", { "-f", if bin ~= "" then bin else "bitacora", where }, function(_, code)
+        say(if code == 0 then tr("A new window") else tr("A new window could not be opened"))
+    end)
+end)
+
+-- ── the menu of the right button ──
+on("menu_do", function(v)
+    local k = math.floor(tonumber(v) or -1)
+    local s = math.floor(tonumber(fact["menu.s"]) or 0)
+    local name = string.format("term.%d", s)
+    fact["menu.on"] = false
+    -- (The pane pressed is the one acted on: it takes the keys first.)
+    for _, t in ipairs(tabs) do
+        for _, q in ipairs(t.panes) do
+            if q == s then
+                t.focus = s
+            end
+        end
     end
-    -- (Loose from this one: closing this window does not take the new one with it.)
-    local ok = pcall(sys.call, "apps.launch", q(if bin ~= "" then bin else "bitacora") .. " " .. q(where))
-    say(if ok then tr("A new window") else tr("A new window could not be opened"))
+    if k == 0 then
+        local ok = pcall(sys.call, "terminal.copy", name)
+        say(if ok then tr("Copied") else tr("Nothing is selected"))
+    elseif k == 1 then
+        pcall(sys.call, "terminal.paste", name)
+    elseif k == 2 then
+        pcall(sys.call, "terminal.select_all", name)
+    elseif k == 3 or k == 4 then
+        split(k - 3)
+        return
+    elseif k == 5 then
+        new_tab(nil)
+        return
+    elseif k == 6 then
+        pcall(sys.call, "terminal.forget", name)
+        say(tr("History forgotten"))
+    elseif k == 7 then
+        emit("new_window")
+    elseif k == 8 then
+        close_shell(s)
+        return
+    end
+    give_keys(s)
 end)
 
 -- ── the desktop's colours: Calima's Taller says them in a file, and they are followed ──

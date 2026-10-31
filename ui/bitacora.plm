@@ -10,7 +10,7 @@ language 0.5
 
 scene Bitacora {
     surface { size: 1120, 720; kind: window; title: "Bitácora"; app_id: "bitacora"; keyboard: on_demand }
-    permissions { run: "git", "cat"; services: "env", "files", "files.write", "apps.launch" }
+    permissions { run: "git", "cat", "setsid"; services: "env", "files", "files.write" }
 
     font file "fonts/JetBrainsMono-Variable.ttf"
     font file "fonts/JetBrainsMono-Italic-Variable.ttf"
@@ -240,6 +240,60 @@ scene Bitacora {
         text st.size { at: W - 18, ly; anchor: right center; size: 11.5; family: "JetBrains Mono"; color: faint }
     }
 
+    // ── a menu where a pane is pressed with the right button ──
+    fact menu.on = false
+    fact menu.x = 0
+    fact menu.y = 0
+    fact menu.s = 0
+    event menu_do ->
+    repeat i in 0..8 {
+        on press right term.$i {
+            menu.x = pointer.x
+            menu.y = pointer.y
+            menu.s = i
+            menu.on = true
+        }
+    }
+    on key Escape while menu.on { menu.on = false }
+    prop mp = 0 ~quick
+    follow mp = if(menu.on, 1, 0)
+    // (Pressing anywhere else closes it.)
+    zone box shield { from: 0, 0; size: W, H; active: menu.on }
+    on press shield { menu.on = false }
+    on press right shield { menu.on = false }
+    let MW = 236
+    let MH = 9 * 30 + 2 * 9 + 12
+    let mx = clamp(menu.x, 8, W - MW - 8)
+    let my = clamp(menu.y, 8, H - MH - 8)
+    group {
+        show: mp > 0.01
+        opacity: mp
+        move: 0, -6 * (1 - mp)
+        box { from: mx + 2, my + 6; size: MW, MH; corner: R; color: #000000; opacity: 22% }
+        box { from: mx, my; size: MW, MH; corner: R; color: mix(bg, ink, 0.075) }
+        box { from: mx, my; size: MW, MH; corner: R; stroke: 1; color: ink; opacity: 9% }
+        component Item(k: number, y: number, label: text, hint: text) {
+            group {
+                zone box b { from: mx + 6, y; size: MW - 12, 28; corner: Rs; cursor: pointer; active: menu.on; label: label }
+                box { from: mx + 6, y; size: MW - 12, 28; corner: Rs; color: acc; opacity: 16% * b.hover }
+                text label { at: mx + 16, y + 14; anchor: left center; size: 12.5; weight: 500; family: "Manrope"; color: ink }
+                text hint { at: mx + MW - 16, y + 14; anchor: right center; size: 10.5; family: "JetBrains Mono"; color: faint }
+                on press b { emit menu_do(k) }
+            }
+        }
+        Item(0, my + 6, "Copy", "Ctrl+Shift+C")
+        Item(1, my + 36, "Paste", "Ctrl+Shift+V")
+        Item(2, my + 66, "Select all", "")
+        box { from: mx + 14, my + 99; size: MW - 28, 1; color: ink; opacity: 8% }
+        Item(3, my + 105, "Pane beside", "Ctrl+Shift+D")
+        Item(4, my + 135, "Pane below", "Ctrl+Shift+E")
+        Item(5, my + 165, "New tab", "Ctrl+Shift+T")
+        box { from: mx + 14, my + 198; size: MW - 28, 1; color: ink; opacity: 8% }
+        Item(6, my + 204, "Forget its history", "")
+        Item(7, my + 234, "New window", "Ctrl+Shift+N")
+        Item(8, my + 264, "Close pane", "Ctrl+Shift+W")
+    }
+
     // ── a word that comes and goes ──
     prop tp = 0 ~calm
     follow tp = if(toast.on, 1, 0)
@@ -251,5 +305,35 @@ scene Bitacora {
         text toast { at: -4000, -4000; size: 12.5; family: "Manrope"; opacity: 0%; measure: tm }
         box { from: W / 2 - tm.width / 2 - 16, H - BOT - 52; size: tm.width + 32, 34; corner: 17; color: mix(bg, ink, 0.12) }
         text toast { at: W / 2, H - BOT - 35; anchor: center; size: 12.5; weight: 600; family: "Manrope"; color: ink }
+    }
+
+    translations es {
+        "Copy" = "Copiar"
+        "Ctrl+Shift+C" = "Ctrl+Mayús+C"
+        "Ctrl+Shift+V" = "Ctrl+Mayús+V"
+        "Ctrl+Shift+D" = "Ctrl+Mayús+D"
+        "Ctrl+Shift+E" = "Ctrl+Mayús+E"
+        "Ctrl+Shift+T" = "Ctrl+Mayús+T"
+        "Ctrl+Shift+N" = "Ctrl+Mayús+N"
+        "Ctrl+Shift+W" = "Ctrl+Mayús+W"
+        "Paste" = "Pegar"
+        "Select all" = "Seleccionar todo"
+        "Pane beside" = "Panel al lado"
+        "Pane below" = "Panel debajo"
+        "New tab" = "Pestaña nueva"
+        "Forget its history" = "Olvidar su historial"
+        "New window" = "Ventana nueva"
+        "Close pane" = "Cerrar el panel"
+        "Terminal" = "Terminal"
+        "A pane beside (Ctrl+Shift+D)" = "Un panel al lado (Ctrl+Mayús+D)"
+        "A pane below (Ctrl+Shift+E)" = "Un panel debajo (Ctrl+Mayús+E)"
+        "Six tabs at most: close one first" = "Seis pestañas como mucho: cierra una antes"
+        "Eight shells at most: close one first" = "Ocho terminales como mucho: cierra una antes"
+        "Four panes a tab at most" = "Cuatro paneles por pestaña como mucho"
+        "A new window" = "Una ventana nueva"
+        "A new window could not be opened" = "No se pudo abrir una ventana nueva"
+        "Copied" = "Copiado"
+        "Nothing is selected" = "No hay nada seleccionado"
+        "History forgotten" = "Historial olvidado"
     }
 }
