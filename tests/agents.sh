@@ -12,7 +12,9 @@ PL=${PLEAMAR_BIN:?PLEAMAR_BIN: a pleamar, to speak to the windows}
 BIN="$REPO/target/release/bitacora"
 mkdir -p "$REPO/tmp"
 T=$(mktemp -d "$REPO/tmp/ag.XXXXXX")
-mkdir -p "$T"/{home,config,data,state,cache,bin,work} && mkdir -m 0700 "$T/runtime"
+mkdir -p "$T"/{home,config/pleamar,data,state,cache,bin,work} && mkdir -m 0700 "$T/runtime"
+# The session's own hands, for the wheel (pleamar-wm agent scroll): as a mouse turns it.
+echo "agent on" > "$T/config/pleamar/session.conf"
 # The stand-in agent.
 cat > "$T/bin/claude" <<'AGENT'
 #!/bin/bash
@@ -78,6 +80,14 @@ p0=\$(g term.0.pid | cut -d. -f1)
 python3 -c "import json,sys; d=json.load(open('$OUT/list-0.json')); l=[x for x in d['layers'] if x['id']==\$p0]; sys.exit(0 if l and int(l[0]['terminal'])==\$bpid else 1)" \
   && ok "term.0.pid (\$p0) is its shell's layer in pleamar-wm, whose terminal is Bitácora" || ko "term.0.pid \$p0 is no layer of Bitácora's"
 shot 0-one
+# The wheel: up goes back through the history, down comes back.
+"\$W" term paste \$p0 "seq 1 300" > /dev/null 2>&1; "\$W" term keys \$p0 enter > /dev/null 2>&1; sleep 1
+b0=\$(g term.0.back)
+WAYLAND_DISPLAY=\$d "\$W" agent scroll \$bpid 400 400 up 3 > "$OUT/wheel-up.txt" 2>&1; sleep 0.6
+b1=\$(g term.0.back)
+WAYLAND_DISPLAY=\$d "\$W" agent scroll \$bpid 400 400 down 3 > /dev/null 2>&1; sleep 0.6
+b2=\$(g term.0.back)
+[ "\$b0" = 0 ] && [ "\$(echo "\$b1" | cut -d. -f1)" -gt 0 ] 2>/dev/null && [ "\$b2" = 0 ] && ok "the wheel up goes back through its history (\$b1 lines), down comes back to its end" || ko "wheel: back \$b0 → up \$b1 → down \$b2 · \$(head -2 "$OUT/wheel-up.txt")"
 # An agent beside, wired to the pane.
 e "emit agent_beside"
 waitf s.1.ag 1 60 && ok "Ctrl+Shift+A: a pane beside with its agent, working (s.1.ag = 1)" || ko "the agent beside: s.1.ag=\$(g s.1.ag)"

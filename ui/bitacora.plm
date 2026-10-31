@@ -69,6 +69,7 @@ scene Bitacora {
         fact term.$i.cols = 0
         fact term.$i.rows = 0
         fact term.$i.pid = 0
+        fact term.$i.back = 0
         text term.$i.title = ""
         text term.$i.folder = ""
     }
