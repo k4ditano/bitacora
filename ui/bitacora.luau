@@ -64,8 +64,11 @@ local function base(path: string): string
     end
     return string.match(path, "([^/]+)/*$") or path
 end
+-- Each shell's folder as pleamar-wm's layer says it (under pleamar-wm the engine's child is the layer's bridge,
+-- whose folder never changes; the layer knows its shell's).
+local layer_cwd: { [number]: string } = {}
 local function folder_of(s: number): string
-    local f = text[string.format("term.%d.folder", s)] or ""
+    local f = layer_cwd[s] or text[string.format("term.%d.folder", s)] or ""
     -- (A shell just started has not said it yet: where it was started.)
     return if f ~= "" then f else text[string.format("s.%d.start", s)] or ""
 end
@@ -748,6 +751,11 @@ local function look_agents()
                 local hook = tostring(l.hook or "")
                 local st = if hook == "asking" then 3 elseif (if hook ~= "" then hook == "working" else l.state == "working") then 1 else 2
                 a = { who = tostring(l.name or ""), agent = tostring(l.agent), st = st, title = tostring(l.title or "") }
+            end
+            local cwd = if l and tostring(l.cwd or "") ~= "" then tostring(l.cwd) else nil
+            if cwd ~= layer_cwd[s] then
+                layer_cwd[s] = cwd
+                changed = true
             end
             local was = agents[s]
             if (was == nil) ~= (a == nil) or (was and a and (was.st ~= a.st or was.who ~= a.who or was.title ~= a.title)) then
