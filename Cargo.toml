@@ -1,6 +1,6 @@
 [package]
 name = "bitacora"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 description = "Bitácora: the terminal of pleamar's desktop, drawn by pleamar itself"
 license = "MIT"
