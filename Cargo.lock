@@ -1607,8 +1607,8 @@ checksum = "f6b464fbc74e149a392436b17d523f769e057cb6877f6a5c4618bc6f11800548"
 
 [[package]]
 name = "pleamar"
-version = "0.7.5"
-source = "git+https://github.com/k4ditano/pleamar?tag=v0.7.5#b7d91498c3a25372874319e6485fa082c0b8385e"
+version = "0.7.7"
+source = "git+https://github.com/k4ditano/pleamar?tag=v0.7.7#bc710b193702d12f401cedea79541d94508861be"
 dependencies = [
  "alacritty_terminal",
  "arboard",

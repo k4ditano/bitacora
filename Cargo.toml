@@ -6,7 +6,7 @@ description = "Bitácora: the terminal of pleamar's desktop, drawn by pleamar it
 license = "MIT"
 
 [dependencies]
-pleamar = { git = "https://github.com/k4ditano/pleamar", tag = "v0.7.5" }
+pleamar = { git = "https://github.com/k4ditano/pleamar", tag = "v0.7.7" }
 
 [profile.release]
 debug = false
